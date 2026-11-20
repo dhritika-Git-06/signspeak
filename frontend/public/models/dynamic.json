@@ -1,0 +1,91 @@
+{
+  "file": "dynamic.bin",
+  "tensors": [
+    {
+      "name": "lstm1_k",
+      "shape": [
+        63,
+        256
+      ],
+      "offset": 0,
+      "length": 16128
+    },
+    {
+      "name": "lstm1_r",
+      "shape": [
+        64,
+        256
+      ],
+      "offset": 16128,
+      "length": 16384
+    },
+    {
+      "name": "lstm1_b",
+      "shape": [
+        256
+      ],
+      "offset": 32512,
+      "length": 256
+    },
+    {
+      "name": "lstm2_k",
+      "shape": [
+        64,
+        128
+      ],
+      "offset": 32768,
+      "length": 8192
+    },
+    {
+      "name": "lstm2_r",
+      "shape": [
+        32,
+        128
+      ],
+      "offset": 40960,
+      "length": 4096
+    },
+    {
+      "name": "lstm2_b",
+      "shape": [
+        128
+      ],
+      "offset": 45056,
+      "length": 128
+    },
+    {
+      "name": "embed_k",
+      "shape": [
+        32,
+        32
+      ],
+      "offset": 45184,
+      "length": 1024
+    },
+    {
+      "name": "embed_b",
+      "shape": [
+        32
+      ],
+      "offset": 46208,
+      "length": 32
+    },
+    {
+      "name": "probs_k",
+      "shape": [
+        32,
+        8
+      ],
+      "offset": 46240,
+      "length": 256
+    },
+    {
+      "name": "probs_b",
+      "shape": [
+        8
+      ],
+      "offset": 46496,
+      "length": 8
+    }
+  ]
+}

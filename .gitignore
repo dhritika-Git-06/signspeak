@@ -1,0 +1,16 @@
+node_modules/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+data/raw/
+data/dynamic/
+backend/runtime/
+*.tsbuildinfo
+.DS_Store
+frontend/dist/
+dist/
+*.zip
+.vite/
+*.log

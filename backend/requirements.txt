@@ -1,0 +1,7 @@
+-r requirements-serve.txt
+tensorflow==2.17.1
+pandas==2.2.3
+scikit-learn==1.5.2
+matplotlib==3.9.3
+pytest==8.3.4
+httpx==0.28.1

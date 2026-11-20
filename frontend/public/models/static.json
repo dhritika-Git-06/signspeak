@@ -1,0 +1,93 @@
+{
+  "file": "static.bin",
+  "tensors": [
+    {
+      "name": "conv1_k",
+      "shape": [
+        3,
+        3,
+        64
+      ],
+      "offset": 0,
+      "length": 576
+    },
+    {
+      "name": "conv1_b",
+      "shape": [
+        64
+      ],
+      "offset": 576,
+      "length": 64
+    },
+    {
+      "name": "conv2_k",
+      "shape": [
+        3,
+        64,
+        128
+      ],
+      "offset": 640,
+      "length": 24576
+    },
+    {
+      "name": "conv2_b",
+      "shape": [
+        128
+      ],
+      "offset": 25216,
+      "length": 128
+    },
+    {
+      "name": "conv3_k",
+      "shape": [
+        3,
+        128,
+        64
+      ],
+      "offset": 25344,
+      "length": 24576
+    },
+    {
+      "name": "conv3_b",
+      "shape": [
+        64
+      ],
+      "offset": 49920,
+      "length": 64
+    },
+    {
+      "name": "embed_k",
+      "shape": [
+        64,
+        128
+      ],
+      "offset": 49984,
+      "length": 8192
+    },
+    {
+      "name": "embed_b",
+      "shape": [
+        128
+      ],
+      "offset": 58176,
+      "length": 128
+    },
+    {
+      "name": "probs_k",
+      "shape": [
+        128,
+        24
+      ],
+      "offset": 58304,
+      "length": 3072
+    },
+    {
+      "name": "probs_b",
+      "shape": [
+        24
+      ],
+      "offset": 61376,
+      "length": 24
+    }
+  ]
+}

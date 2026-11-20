@@ -1,0 +1,57 @@
+{
+  "version": "1.0.0",
+  "static_labels": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H",
+    "I",
+    "K",
+    "L",
+    "M",
+    "N",
+    "O",
+    "P",
+    "Q",
+    "R",
+    "S",
+    "T",
+    "U",
+    "V",
+    "W",
+    "X",
+    "Y"
+  ],
+  "dynamic_labels": [
+    "J",
+    "Z",
+    "HELLO",
+    "YES",
+    "NO",
+    "THANKS",
+    "PLEASE",
+    "SORRY"
+  ],
+  "z_mode": "passthrough",
+  "sequence_length": 30,
+  "static_embed_dim": 128,
+  "dynamic_embed_dim": 32,
+  "static_filters": [
+    64,
+    128,
+    64
+  ],
+  "dynamic_lstm": [
+    64,
+    32
+  ],
+  "motion_threshold": 0.06283550059888512,
+  "static_accuracy": 0.9419444444444445,
+  "static_macro_f1": 0.9422924389464414,
+  "dynamic_accuracy": 0.99125,
+  "dynamic_macro_f1": 0.9912657769934792
+}
