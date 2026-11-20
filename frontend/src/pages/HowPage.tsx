@@ -9,7 +9,7 @@ const steps = [
   },
   {
     title: "Letters and word rules",
-    body: "A 1D CNN, trained on public ASL Alphabet landmarks, reads a still letter. Common words such as ME, WANT and WATER are geometric rules on the same 21 points. They are not a second accuracy number.",
+    body: "A 1D CNN, trained on public ASL Alphabet landmarks, reads a still letter. Common words such as ME, WANT and WATER are geometric rules on the same 21 points, checked with a synthetic test. An optional ASL beta mode uses a word model trained on real signers (PopSign ASL).",
   },
   {
     title: "A steady sentence",
@@ -29,7 +29,7 @@ export function HowPage() {
         <h1 className="serif text-4xl">From a hand shape to a spoken sentence</h1>
         <p className="mt-3 text-[var(--muted)]">
           Built by Dhritika Sahu. It is a fingerspelling and
-          isolated-gesture tool: it does not translate full American Sign Language grammar, facial expression, or two-handed conversation.
+          isolated-gesture tool: it does not translate full American Sign Language grammar, facial expression, or conversation. HELP and SCHOOL are the only two-hand signs it reads.
         </p>
       </header>
       <ol className="grid gap-3 md:grid-cols-2">

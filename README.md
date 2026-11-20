@@ -22,7 +22,9 @@ The Evaluation page shows the held-out numbers and both confusion matrices.
 
 J and Z are motions, so they are not in the still-letter model.
 
-**Words** (geometric rules, not a trained accuracy): HELLO, YES, NO, THANKS, PLEASE, SORRY, ME, YOU, WE, LOVE, STOP, WATER, MORE, DRINK, EAT, GO, COME, GOOD, BAD, LIKE, WANT, NEED, WHERE, WHAT, NAME, FINE, HOME. HELP and SCHOOL need two hands and are not detected. A presentation button plays ME → WANT → WATER and speaks “I want water.” if the camera fails.
+**Words** (geometric rules on the landmarks): HELLO, YES, NO, THANKS, PLEASE, SORRY, ME, YOU, WE, LOVE, STOP, WATER, MORE, DRINK, EAT, GO, COME, GOOD, BAD, LIKE, WANT, NEED, WHERE, WHAT, NAME, FINE, HOME, plus the two-hand signs **HELP** (fist on an open palm) and **SCHOOL** (two flat hands clapping). These are simplified one-hand forms (except HELP/SCHOOL). Their scores come from a synthetic test, see below. A presentation button plays ME → WANT → WATER and speaks “I want water.” if the camera fails.
+
+**ASL beta mode** (trained on real signers): a small network trained on the PopSign ASL dataset reads 14 real ASL word forms (BAD, DRINK, FINE, GO, HELLO, HOME, LIKE, NO, PLEASE, THANKS, WATER, WE, WHERE, YES). It scored **89.38%** on 1,431 clips from 8 signers it never saw in training. It is opt-in because it has no “no sign” class, so it reads one sign at a time between pauses.
 
 An earlier LSTM on kinematic sequences scored 99.12% on its synthetic holdout. That model is not used in the live demo. Do not quote 99.12% as webcam word accuracy.
 
@@ -71,6 +73,16 @@ flowchart LR
 | API | `backend/app/main.py` (`/health`, `/predict`, `/tts`, `/train`) |
 | OpenCV demo | `python demo_webcam.py` |
 
+## Features added for the final demo
+
+- **Learn page** (`/learn`): pick any word or still letter, watch an animated reference hand, read how to make it, then sign it to the camera and get “Correct!” or “That looked like X. Try again.” with a running score. **Play example** runs the built-in example through the same recognizer, so the grading can be shown without a camera. A 5-sign **quiz** hides the figure (Show hint reveals it) and gives a final score.
+- **Text to sign** on the Learn page: type a sentence; known words show their sign card, other words are fingerspelled letter by letter, each with Replay.
+- **Two-hand HELP and SCHOOL**: MediaPipe now tracks two hands; both are drawn.
+- **Hindi**: a Voice selector (English / हिन्दी). The gloss sequence is mapped to a Hindi sentence with a phrase table (ME WANT WATER → “मुझे पानी चाहिए।”). If the device has a hi-IN voice it speaks Hindi; otherwise it speaks the English line and says so.
+- **Sentence tools**: Copy, Share (falls back to copy when the browser cannot share) and Download .txt (a dated transcript of spoken lines).
+- **Accuracy help**: a “Tips for best accuracy” dialog, and live hints over the video: too dark, too far, too close, keep the hand inside the frame, no hand found.
+- **Tests**: every button, select and input is driven by a Playwright test (27 tests, fake webcam) that runs in CI before each deploy.
+
 ## Real test-set numbers
 
 From `python evaluate.py` on the held-out splits (seed 42). These are the figures on the Evaluation page. They are not rounded.
@@ -85,6 +97,27 @@ Static depth check: adding Gaussian noise of σ = 0.1 on z changes accuracy to 9
 The usual static confusions are M↔N, then P→Q and R→U. Those pairs look alike as 21 points.
 
 The dynamic score is high because the motions are generated. See [Dynamic signs](#dynamic-signs) before treating 99% as a webcam result.
+
+### Real signers: PopSign ASL word model
+
+PopSign ASL v1.0 (Starner et al., NeurIPS 2023), **CC BY 4.0**, frames from `huggingface.co/datasets/sign/popsign-images`. Landmarks were extracted with MediaPipe (`training/extract_popsign.py`, `training/popsign_words.py`). Split by signer: 4,898 training clips from 31 signers, 1,431 test clips from 8 different signers.
+
+| Model | Test accuracy | Macro F1 | Top-3 |
+| --- | --- | --- | --- |
+| MLP (256 hidden), 14 words | **89.38%** | **88.87%** | 94.83% |
+
+The app's own TypeScript port with the shipped weights reproduces 89.4% on the same clips. The hand-written rules score only **9.8%** on those clips (no word at all on 58.1%), because the rules expect this app's simplified one-hand forms and PopSign signers use real ASL forms. That is why the trained model is offered as the separate ASL beta mode.
+
+### Synthetic per-sign test (not real people)
+
+A 3D hand model performs every sign 20 times with random hand side, size, position, rotation, speed, camera shape and jitter, and the samples go through the real recognizer. A sample passes only if exactly the right sign is added once. Results (`frontend/public/evaluation/synthetic_signs.json`):
+
+- Words, Auto mode: **93.3%** overall. Weakest: LIKE 45%, DRINK 70%, EAT 80%, NEED 80%, COME 85%, HOME 85%.
+- Letters, Letters mode: **92.3%**. Weakest: M 65%, N 75%, T 80%, V 85%, X 85%.
+- Letters in Auto mode: 71%, because W, O, F and X are read as WATER, MORE, FINE and NEED. Use Letters mode to spell.
+- HELP and SCHOOL: at least 80% each over 24 variations, with no two-hand false reads on one-hand words (`src/test/twohands.test.ts`).
+
+These are a regression check on the rules, not a webcam study.
 
 ## Dataset and license
 
@@ -192,16 +225,20 @@ The serving image does not include TensorFlow. `evaluate.py` and the training sc
 
 ## Pages
 
-- **Recognize** — camera, landmark overlay, live letter, confidence, top alternatives, alphabet strip, sentence, space / delete / clear, speak, auto-speak, letter / word / auto mode.
+- **Recognize** — camera, landmark overlay (two hands), live framing hints, tips dialog, live letter, confidence, alphabet strip, sentence with optional Hindi line, space / delete / clear, speak (English or Hindi), copy / share / download, auto-speak, Auto / Letters / Words / ASL beta mode.
+- **Learn** — reference figures, practice with grading and score, 5-sign quiz, text to sign.
 - **Train** — name a sign, record bursts, fit a TF.js head, export and import JSON. If the API is up, the same samples are posted to `/train`.
 - **How it works** — the pipeline in plain language, including what the project does not claim.
-- **Evaluation** — accuracy, macro F1, confusion matrices, classification reports, dataset citation.
+- **Evaluation** — measured accuracy, each number labelled *Real data* or *Synthetic test*: letter CNN, PopSign word model vs rules, per-sign synthetic tables, confusion matrices, dataset citations.
 
 Light and dark follow the system theme until you toggle them. The choice is stored locally.
 
 ## Limitations
 
-- Fingerspelling and a handful of isolated motions, not conversational ASL. No face, eyebrows, or body grammar.
+- Fingerspelling and a handful of isolated signs, not conversational ASL. No face, eyebrows, or body grammar.
+- The word rules use simplified forms. On real ASL clips (PopSign) they score 9.8%; the ASL beta model scores 89.38% but covers only 14 words and needs a pause between signs.
+- The synthetic per-sign scores are not a study with real webcam users.
+- Hindi speech depends on the device having a Hindi voice (most Windows and Android devices do; some Linux browsers do not). The Hindi text is always shown.
 - The public photograph set is a single signer. M and N, and a few other pairs, stay easy to confuse.
 - J and Z are only on the motion model, and those motions are templates, not a filmed corpus.
 - Auto mode switches on hand motion. A very still word or a shaky letter can pick the wrong network. The Letters / Words toggle overrides it.
@@ -215,7 +252,7 @@ These are the natural next steps for this project, in the same spirit as a final
 
 - Continuous signing, not one letter or one isolated word at a time.
 - Indian Sign Language vocabulary beside the ASL alphabet.
-- Non-manual signals: face, head, and a second hand.
+- Non-manual signals: face and head.
 - Speech-to-sign the other way, with an avatar.
 - A multi-signer landmark set so the reported accuracy matches new hands.
 - On-device speech that does not call Google, and a phone layout that is the primary UI rather than a responsive page.
