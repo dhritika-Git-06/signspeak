@@ -20,8 +20,8 @@ Open the page, scroll to the demo, and keep Presentation mode visible.
 
 1. Say: “If the light is bad I will use the recorded poses. I will try the camera first.”
 2. Start the camera. Sign **ME** (index finger pointing down), hold it until the chip appears.
-3. Sign **WANT** (open hand pulled toward you). Hold.
-4. Sign **WATER** (index, middle and ring up, pinky down). Hold.
+3. Sign **WANT**: open hand facing the camera, then pull it back toward your chest so it looks clearly smaller on screen. Keep it there until the chip appears.
+4. Sign **WATER** (index, middle and ring up, pinky down). Hold until the chip appears. Each held sign adds one word only; to repeat the same word, drop your hand out of view first.
 5. The sentence should read **I want water.** Press **Speak**.
 6. If any step fails, press **Play presentation demo**. It plays those three poses and speaks the same sentence. Say that this fallback is built into the page so the demo does not depend on the room.
 

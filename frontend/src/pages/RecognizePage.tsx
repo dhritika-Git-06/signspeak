@@ -19,7 +19,7 @@ import {
 import { asset } from "@/lib/asset"
 import { SentenceSession } from "@/lib/sentenceEngine"
 import { speak } from "@/lib/speech"
-import { Stabilizer } from "@/lib/stabilizer"
+import { Recognizer } from "@/lib/recognizer"
 import { PRESENTATION_SCRIPT, WORD_SIGNS, demoSequence, recognizeWord } from "@/lib/words"
 import { useModels } from "@/models-context"
 
@@ -46,9 +46,15 @@ export function RecognizePage() {
   const [voice, setVoice] = useState<"browser" | "gtts" | "silent" | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [showingSample, setShowingSample] = useState(false)
-  const stabilizer = useRef(new Stabilizer({ window: 14, majority: 0.8, minConfidence: 0.62, releaseFrames: 6, cooldownFrames: 30 }))
-  const buffer = useRef<Point[][]>([])
-  const wordVotes = useRef(0)
+  const recognizer = useRef(
+    new Recognizer({
+      letter: () => ({ label: "", confidence: 0, top: [] }),
+      dynamic: () => null,
+      motion: () => 0,
+      motionThreshold: 1,
+    }),
+  )
+  const [presenting, setPresenting] = useState(false)
   const replayTimer = useRef(0)
 
   const runtime = useRef({
@@ -78,7 +84,6 @@ export function RecognizePage() {
 
   function classify(frameLandmarks: Point[] | null, handedness: string | null, sampleKind?: "letter" | "word") {
     const { models: bundle, mode: currentMode, mirror: mirrorMode, threshold: minConf } = runtime.current
-    stabilizer.current.setMinConfidence(minConf)
     if (!bundle.meta || !bundle.classifier || !bundle.dynamic) {
       return
     }
@@ -86,61 +91,27 @@ export function RecognizePage() {
     const shouldMirror = mirrorMode === "on" || (mirrorMode === "auto" && handedness === "Left")
     const zeroZ = meta.z_mode === "zero"
     setHand(frameLandmarks ? handedness ?? "Hand" : null)
-    if (!frameLandmarks) {
-      wordVotes.current = 0
-      buffer.current = []
-      setLive(null)
-      stabilizer.current.push(null, 0)
-      return
+    const engine = recognizer.current
+    engine.setThreshold(minConf)
+    engine.deps.motionThreshold = meta.motion_threshold
+    engine.deps.letter = (frame, mirror) => {
+      const norm = normalizeLandmarks(frame, { mirror, zeroZ })
+      const base = predictStatic(bundle.classifier!, norm, meta.static_labels)
+      return overrideCustom("static", () => embedStatic(bundle.embed!, norm), base, bundle)
     }
-    buffer.current.push(frameLandmarks)
-    if (buffer.current.length > 48) buffer.current.shift()
-
-    let motion = 0
-    if (buffer.current.length >= 8 && sampleKind !== "word") {
-      try {
-        motion = motionEnergy(normalizeSequence(buffer.current, meta.sequence_length, { mirror: shouldMirror, zeroZ }))
-      } catch {
-        motion = 0
-      }
-    }
-    if (sampleKind === "word") wordVotes.current = 12
-    else if (motion > meta.motion_threshold) wordVotes.current = Math.min(12, wordVotes.current + 1)
-    else wordVotes.current = Math.max(0, wordVotes.current - 1)
-
-    const useWords =
-      sampleKind === "word" ||
-      currentMode === "words" ||
-      (currentMode === "auto" && sampleKind !== "letter" && wordVotes.current >= 6 && buffer.current.length >= 12)
-
-    let prediction: Live
-    if (useWords && buffer.current.length >= 8) {
+    engine.deps.dynamic = (frames, mirror, kind) => {
       const seq =
-        sampleKind === "word"
-          ? normalizeSequence(buffer.current.slice(-meta.sequence_length), meta.sequence_length, { mirror: shouldMirror, zeroZ })
-          : normalizeSequence(buffer.current, meta.sequence_length, { mirror: shouldMirror, zeroZ })
+        kind === "word"
+          ? normalizeSequence(frames.slice(-meta.sequence_length), meta.sequence_length, { mirror, zeroZ })
+          : normalizeSequence(frames, meta.sequence_length, { mirror, zeroZ })
       const flat = flattenSequence(seq)
-      const base = predictDynamic(bundle.dynamic, flat, meta.dynamic_labels)
-      prediction = { ...overrideCustom("dynamic", embedDynamic(bundle.dynamicEmbed!, flat), base, bundle), kind: "word" }
-    } else {
-      const norm = normalizeLandmarks(frameLandmarks, { mirror: shouldMirror, zeroZ })
-      const base = predictStatic(bundle.classifier, norm, meta.static_labels)
-      prediction = { ...overrideCustom("static", embedStatic(bundle.embed!, norm), base, bundle), kind: "letter" }
+      const base = predictDynamic(bundle.dynamic!, flat, meta.dynamic_labels)
+      return overrideCustom("dynamic", () => embedDynamic(bundle.dynamicEmbed!, flat), base, bundle)
     }
-    if (mode !== "letters") {
-      const hit = recognizeWord(buffer.current)
-      if (hit) {
-        prediction = {
-          label: hit.id,
-          confidence: hit.score,
-          top: [{ label: hit.id, confidence: hit.score }],
-          kind: "word",
-        }
-      }
-    }
-    setLive(prediction)
-    const stable = stabilizer.current.push(prediction.label, prediction.confidence)
-    if (stable) commit(stable, prediction.kind)
+    engine.deps.motion = (frames, mirror) => motionEnergy(normalizeSequence(frames, meta.sequence_length, { mirror, zeroZ }))
+    const result = engine.push(frameLandmarks, { mode: currentMode, mirror: shouldMirror, sampleKind })
+    setLive(result.live)
+    if (result.commit) commit(result.commit.label, result.commit.kind)
   }
 
   const classifyRef = useRef(classify)
@@ -167,8 +138,7 @@ export function RecognizePage() {
     runtime.current = { models, mode, mirror, threshold, autoSpeak, sentenceRev }
     setShowingSample(true)
     window.clearInterval(replayTimer.current)
-    stabilizer.current.reset()
-    buffer.current = []
+    recognizer.current.reset()
     try {
     if (kind === "static") {
       const data = await fetch(asset("samples/static_samples.json")).then((res) => res.json())
@@ -176,7 +146,7 @@ export function RecognizePage() {
       const pts: Point[] = []
       for (let i = 0; i < 21; i++) pts.push([flat[i * 2], flat[i * 2 + 1], 0])
       tracker.showSample(pts, "image")
-      for (let i = 0; i < 20; i++) classify(pts, "Right", "letter")
+      for (let i = 0; i < 30; i++) classify(pts, "Right", "letter")
       return
     }
     const data = await fetch(asset("samples/dynamic_samples.json")).then((res) => res.json())
@@ -187,21 +157,19 @@ export function RecognizePage() {
     const { dynamic, dynamicEmbed, meta, apiBase } = runtime.current.models
     if (!dynamic || !dynamicEmbed || !meta) return
     const flat = flattenSequence(seq)
+    // The recorded sample is one fixed clip, so run the motion model once and replay that reading.
+    const base = predictDynamic(dynamic, flat, meta.dynamic_labels)
+    const reading = overrideCustom("dynamic", () => embedDynamic(dynamicEmbed, flat), base, runtime.current.models)
     for (let i = 0; i < 20; i++) {
-      const base = predictDynamic(dynamic, flat, meta.dynamic_labels)
-      const prediction = {
-        ...overrideCustom("dynamic", embedDynamic(dynamicEmbed, flat), base, runtime.current.models),
-        kind: "word" as const,
-      }
+      const prediction = { ...reading, kind: "word" as const }
       setLive(prediction)
       setHand("Sample")
-      const stable = stabilizer.current.push(prediction.label, prediction.confidence)
-      if (stable) {
-        {
-          session.current.confirmWord(stable)
-          bump()
-        }
-        if (runtime.current.autoSpeak) void speak(stable, apiBase).then(setVoice)
+      const result = recognizer.current.pushReading(prediction)
+      if (result.commit) {
+        if (result.commit.kind === "letter") session.current.confirmLetter(result.commit.label)
+        else session.current.confirmWord(result.commit.label)
+        bump()
+        if (runtime.current.autoSpeak) void speak(result.commit.label, apiBase).then(setVoice)
       }
     }
     } catch (err) {
@@ -214,11 +182,14 @@ export function RecognizePage() {
   const chips = session.current.chips()
 
   async function runPresentation() {
+    if (presenting) return
+    setPresenting(true)
     setShowingSample(true)
     setNotice("Presentation demo. These poses are built-in examples of the word rules, for when the camera fails.")
     session.current.clear()
-    stabilizer.current.reset()
+    recognizer.current.reset()
     bump()
+    try {
     for (const id of PRESENTATION_SCRIPT) {
       const frames = demoSequence(id)
       for (const frame of frames) {
@@ -231,10 +202,13 @@ export function RecognizePage() {
       bump()
     }
     const spoken = session.current.previewEnglish()
-    setNotice(spoken)
+    setNotice(`Demo sentence: ${spoken} Press Speak to say it again, or Clear to start your own.`)
     await speak(spoken, models.apiBase).then(setVoice)
-    session.current.finish()
+    // Leave the sentence on screen for the audience; Speak or Clear moves on from here.
     bump()
+    } finally {
+      setPresenting(false)
+    }
   }
 
   return (
@@ -249,7 +223,7 @@ export function RecognizePage() {
           <p className="mt-3 text-sm font-medium">Built by Dhritika Sahu</p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button onClick={() => document.getElementById("demo")?.scrollIntoView({ behavior: "smooth" })}>Open the demo</Button>
-            <Button variant="quiet" onClick={() => void runPresentation()}>Play presentation demo</Button>
+            <Button variant="quiet" disabled={presenting} onClick={() => void runPresentation()}>{presenting ? "Playing demo…" : "Play presentation demo"}</Button>
           </div>
         </div>
         <aside className="panel p-4" aria-label="Presentation guide">
@@ -377,7 +351,7 @@ export function RecognizePage() {
                 const line = session.current.previewEnglish()
                 void speak(line, models.apiBase).then((used) => {
                   setVoice(used)
-                  setNotice(used === "gtts" ? "Played the server recording." : used === "browser" ? "Spoke with the browser voice." : "Nothing to say yet.")
+                  setNotice(used === "gtts" ? "Played the server recording." : used === "browser" ? "Spoke with the browser voice." : line ? "This browser has no speech voice, so the sentence is shown on screen only." : "Nothing to say yet.")
                   if (line) session.current.finish()
                   bump()
                 })
@@ -402,7 +376,7 @@ export function RecognizePage() {
         </div>
         {session.current.history.length > 0 && (
           <ul className="mt-3 text-sm text-[var(--muted)]" aria-label="Sentence history">
-            {session.current.history.map((line) => <li key={line}>{line}</li>)}
+            {session.current.history.map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}
           </ul>
         )}
         {notice && (
@@ -479,7 +453,7 @@ export function RecognizePage() {
 
 function overrideCustom(
   kind: "static" | "dynamic",
-  vector: number[],
+  vector: () => number[],
   base: { label: string; confidence: number; top: Ranked[] },
   bundle: ReturnType<typeof useModels>,
 ): { label: string; confidence: number; top: Ranked[] } {
@@ -487,7 +461,8 @@ function overrideCustom(
   if (!head) return base
   const custom = new Set(bundle.signs.filter((sign) => sign.kind === kind).map((sign) => sign.name))
   if (!custom.size) return base
-  const alt = predictHead(head.model, vector, head.labels)
+  // Only embed the hand when the user has trained their own signs.
+  const alt = predictHead(head.model, vector(), head.labels)
   if (custom.has(alt.label) && alt.confidence >= 0.55) return alt
   return base
 }

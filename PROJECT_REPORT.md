@@ -14,7 +14,7 @@ The practical objective for the demonstration is a laptop page that works withou
 
 1. The webcam frame is passed to MediaPipe HandLandmarker, which returns 21 landmarks.
 2. Still letters are wrist-centred, scaled by the palm, and passed to a CNN trained on `hand_dataset_1000_24.csv` (MinorvaFalk/KNN_Alphabet, derived from the ASL Alphabet photographs of Akash Nagaraj, GPL-2.0). The classes are A–Y excluding J and Z. J and Z are motions and are not in that file.
-3. Word signs are rules. For example, WATER is the W handshape (index, middle and ring extended, pinky closed), ME is an index finger pointing down, and WANT is an open hand moving toward the camera. HELP and SCHOOL are listed as out of scope because they need two hands. These rules are not assigned a dataset accuracy.
+3. Word signs are rules. For example, WATER is the W handshape (index, middle and ring extended, pinky closed), ME is an index finger pointing down, and WANT is an open hand pulled back toward the signer, read from the palm getting smaller on camera (MediaPipe gives the wrist no usable depth). HELP and SCHOOL are listed as out of scope because they need two hands. These rules are not assigned a dataset accuracy.
 4. A sign is committed after it stays stable for about 650 ms, or for 8 frames. Letters can be corrected against a small dictionary (WATR becomes WATER). Glosses are mapped into an English sentence without calling an external language API.
 5. `speechSynthesis` speaks the sentence. If the optional FastAPI service is running, Speak can request a gTTS recording and falls back to the browser voice.
 
