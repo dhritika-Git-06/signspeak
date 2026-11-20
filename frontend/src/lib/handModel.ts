@@ -304,3 +304,41 @@ export function performMotion(motion: Motion, v: Variation, fps = 30): Point[][]
   }
   return frames
 }
+
+/** Two-hand words: the main (moving or fist) hand and the other hand, in image coordinates. */
+export function performTwoHands(id: "HELP" | "SCHOOL", v: Variation, fps = 30): { main: Point[][]; second: Point[][] } {
+  const { rand } = v
+  const aspect = v.aspect ?? 16 / 9
+  const seconds = 1.4 * between(rand, 0.8, 1.2)
+  const n = Math.max(10, Math.round(seconds * fps))
+  const size = between(rand, 0.15, 0.26)
+  const right = v.hand !== "Left"
+  const mainHand = right ? "Right" : "Left"
+  const otherHand = right ? "Left" : "Right"
+  const cx = between(rand, 0.4, 0.6)
+  const cy = between(rand, 0.55, 0.7)
+  const tilt = between(rand, -12, 12)
+  const j = v.jitter ?? 0.003
+  const noise = seededRandom(Math.floor(rand() * 1e9))
+  const shake = (pts: Point[]) => pts.map((q) => [q[0] + (noise() - 0.5) * 2 * j, q[1] + (noise() - 0.5) * 2 * j, q[2]] as Point)
+  const main: Point[][] = []
+  const second: Point[][] = []
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1)
+    // The flat hand lies palm up across the body, fingers pointing to the side.
+    const flatRoll = (right ? -1 : 1) * (80 + tilt)
+    const lift = id === "HELP" ? -0.4 * t * size : 0
+    const flat = placeHand(SHAPES.flatB, { x: cx, y: cy + lift, size, roll: flatRoll, yaw: 0, pitch: 55, aspect, hand: otherHand })
+    let top: Point[]
+    if (id === "HELP") {
+      top = placeHand(SHAPES.thumbUp, { x: cx + (right ? 0.1 : -0.1) * size / aspect, y: cy - 0.75 * size + lift, size, roll: (right ? -1 : 1) * 90, yaw: 10, pitch: 0, aspect, hand: mainHand })
+    } else {
+      // The top hand claps down onto the flat hand twice.
+      const gap = 0.35 + 0.9 * (0.5 + 0.5 * Math.cos(t * Math.PI * 4))
+      top = placeHand(SHAPES.flatB, { x: cx, y: cy - gap * size, size, roll: (right ? 1 : -1) * (80 - tilt), yaw: 0, pitch: -55, aspect, hand: mainHand })
+    }
+    main.push(shake(top))
+    second.push(shake(flat))
+  }
+  return { main, second }
+}

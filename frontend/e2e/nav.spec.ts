@@ -5,6 +5,7 @@ test("navigation links, logo, theme toggle, skip link and footer", async ({ page
   await openApp(page)
   const nav = page.getByRole("navigation", { name: "Primary" })
   for (const [name, heading] of [
+    ["Learn", "Learn and practise signs"],
     ["Train", "Teach a sign"],
     ["How it works", "From a hand shape to a spoken sentence"],
     ["Evaluation", "Measured accuracy"],
@@ -43,7 +44,7 @@ test("navigation links, logo, theme toggle, skip link and footer", async ({ page
   await expect(page.locator("body")).not.toContainText(/medi-?caps|university|indore/i)
 })
 
-for (const sub of ["train", "how", "evaluation"]) {
+for (const sub of ["train", "learn", "how", "evaluation"]) {
   test(`refreshing /${sub} still loads the app`, async ({ page, errors }) => {
     void errors
     await page.goto(sub)
@@ -55,7 +56,7 @@ for (const sub of ["train", "how", "evaluation"]) {
 test("phone width has no sideways scroll", async ({ browser }) => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
   const page = await ctx.newPage()
-  for (const sub of ["", "train", "how", "evaluation"]) {
+  for (const sub of ["", "learn", "train", "how", "evaluation"]) {
     await page.goto(sub)
     await expect(page.locator("main h1").first()).toBeVisible()
     const { scroll, width } = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, width: document.documentElement.clientWidth }))

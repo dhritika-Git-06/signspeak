@@ -1,6 +1,6 @@
 import type { Point } from "./hands"
 import { Stabilizer, UNSURE, isLetterLabel, type StabilizerOptions } from "./stabilizer"
-import { STATIC_WORDS, palmSize, recognizeWord, shapeSignature } from "./words"
+import { STATIC_WORDS, handsTogether, palmSize, recognizeTwoHands, recognizeWord, shapeSignature } from "./words"
 
 export type SignKind = "letter" | "word"
 export type RecognitionMode = "auto" | "letters" | "words"
@@ -34,6 +34,8 @@ export interface FrameOptions {
   mode: RecognitionMode
   mirror: boolean
   sampleKind?: SignKind
+  /** The second hand, when two are in view (square units, like the main hand). */
+  second?: Point[] | null
 }
 
 export interface FrameResult {
@@ -110,6 +112,7 @@ export function kindOf(label: string): SignKind {
 export class Recognizer {
   readonly stabilizer: Stabilizer
   private buffer: Point[][] = []
+  private secondBuffer: Array<Point[] | null> = []
   private wordVotes = 0
   private missing = 0
   private readonly releaseFrames: number
@@ -124,6 +127,7 @@ export class Recognizer {
 
   reset() {
     this.buffer = []
+    this.secondBuffer = []
     this.wordVotes = 0
     this.missing = 0
     this.sticky = null
@@ -141,6 +145,7 @@ export class Recognizer {
       this.missing += 1
       if (this.missing >= this.releaseFrames) {
         this.buffer = []
+        this.secondBuffer = []
         this.wordVotes = 0
         this.sticky = null
       }
@@ -149,7 +154,9 @@ export class Recognizer {
     }
     this.missing = 0
     this.buffer.push(frame)
+    this.secondBuffer.push(options.second ?? null)
     if (this.buffer.length > 48) this.buffer.shift()
+    if (this.secondBuffer.length > 48) this.secondBuffer.shift()
 
     let motion = 0
     if (this.buffer.length >= 8 && sampleKind !== "word") {
@@ -188,7 +195,8 @@ export class Recognizer {
     // A still letter read from a moving hand is a hand on its way somewhere, not a letter.
     if (moving && prediction.kind === "letter" && !MOTION_LETTERS.has(prediction.label)) unsure = true
     if (mode !== "letters") {
-      const hit = recognizeWord(this.buffer)
+      const pair = recognizeTwoHands(this.buffer, this.secondBuffer)
+      const hit = pair ?? (handsTogether(this.buffer, this.secondBuffer) ? null : recognizeWord(this.buffer))
       if (hit && !(moving && STATIC_WORDS.has(hit.id))) {
         prediction = { label: hit.id, confidence: hit.score, top: [{ label: hit.id, confidence: hit.score }], kind: "word" }
         unsure = false

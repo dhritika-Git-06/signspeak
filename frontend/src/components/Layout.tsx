@@ -6,6 +6,7 @@ import { useModels } from "@/models-context"
 
 const links = [
   { to: "/", label: "Recognize", end: true },
+  { to: "/learn", label: "Learn" },
   { to: "/train", label: "Train" },
   { to: "/how", label: "How it works" },
   { to: "/evaluation", label: "Evaluation" },

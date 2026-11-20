@@ -18,8 +18,12 @@ import {
 } from "@/lib/normalize"
 import { asset } from "@/lib/asset"
 import { SentenceSession } from "@/lib/sentenceEngine"
-import { speak } from "@/lib/speech"
-import { Recognizer } from "@/lib/recognizer"
+import { hasHindiVoice, speak } from "@/lib/speech"
+import { MOVING, Recognizer, recentMotion } from "@/lib/recognizer"
+import { toHindi } from "@/lib/hindi"
+import { ACCURACY_TIPS, framingHint, type Framing } from "@/lib/hints"
+import { SegmentReader, encodeSegment, loadAslWords, predictAslWords, type AslWordsModel } from "@/lib/aslWords"
+import { transcriptText, downloadText } from "@/lib/transcript"
 import { PRESENTATION_SCRIPT, WORD_SIGNS, demoSequence, demoSquare, recognizeWord } from "@/lib/words"
 import { useModels } from "@/models-context"
 
@@ -32,7 +36,12 @@ interface Live {
 
 const LETTERS = "ABCDEFGHIKLMNOPQRSTUVWXY".split("")
 
-const MODE_NOTES: Record<string, string> = {
+type Mode = "auto" | "letters" | "words" | "asl"
+
+const MODE_LABELS: Record<Mode, string> = { auto: "Auto", letters: "Letters", words: "Words", asl: "ASL beta" }
+
+const MODE_NOTES: Record<Mode, string> = {
+  asl: "Beta: 14 real ASL words (HELLO, YES, NO, THANKS, PLEASE, WATER, DRINK, GO, HOME, LIKE, FINE, BAD, WHERE, WE) from a model trained on real signers. Make one sign, then hold still or lower your hand. Letters are off.",
   auto: "Words and letters. W, O, F and X look the same as WATER, MORE, FINE and NEED, so Auto reads them as words. Use Letters to spell with them.",
   letters: "All 24 still letters (plus J and Z by motion). Word signs are ignored.",
   words: "Word signs only. Letters are ignored.",
@@ -45,7 +54,15 @@ export function RecognizePage() {
   const [sentenceRev, setSentenceRev] = useState(0)
   const session = useRef(new SentenceSession())
   const [hand, setHand] = useState<string | null>(null)
-  const [mode, setMode] = useState<"auto" | "letters" | "words">("auto")
+  const [mode, setMode] = useState<Mode>("auto")
+  const [lang, setLang] = useState<"en" | "hi">("en")
+  const [tipsOpen, setTipsOpen] = useState(false)
+  const [framing, setFraming] = useState<Framing | null>(null)
+  const [aslModel, setAslModel] = useState<AslWordsModel | null>(null)
+  const [transcript, setTranscript] = useState<Array<{ at: Date; english: string; hindi: string }>>([])
+  const segment = useRef(new SegmentReader())
+  const aslFrames = useRef<Point[][]>([])
+  const missingFrames = useRef(0)
   const [mirror, setMirror] = useState<"auto" | "on" | "off">("auto")
   const [threshold, setThreshold] = useState(0.62)
   const [autoSpeak, setAutoSpeak] = useState(false)
@@ -88,8 +105,32 @@ export function RecognizePage() {
     }
   }
 
-  function classify(frameLandmarks: Point[] | null, handedness: string | null, sampleKind?: "letter" | "word") {
+  /** ASL beta mode: read one finished movement at a time with the PopSign-trained model. */
+  function classifyAsl(frameLandmarks: Point[] | null, shouldMirror: boolean) {
+    const model = aslModelRef.current
+    if (frameLandmarks) {
+      aslFrames.current.push(frameLandmarks)
+      if (aslFrames.current.length > 20) aslFrames.current.shift()
+    } else aslFrames.current = []
+    const moving = frameLandmarks ? recentMotion(aslFrames.current) > MOVING : false
+    const done = segment.current.push(frameLandmarks, moving)
+    if (!done || !model) {
+      if (moving) setLive({ label: "…", confidence: 0, top: [], kind: "word" })
+      return
+    }
+    const reading = predictAslWords(model, encodeSegment(done, shouldMirror, null, model.steps))
+    setLive({ ...reading, kind: "word" })
+    if (reading.confidence >= Math.min(runtime.current.threshold, 0.6)) commit(reading.label, "word")
+    else setNotice(`Not sure (${reading.label} ${Math.round(reading.confidence * 100)}%). Try the sign again.`)
+  }
+
+  function classify(frameLandmarks: Point[] | null, handedness: string | null, sampleKind?: "letter" | "word", second?: Point[] | null) {
     const { models: bundle, mode: currentMode, mirror: mirrorMode, threshold: minConf } = runtime.current
+    if (currentMode === "asl" && !sampleKind) {
+      setHand(frameLandmarks ? handedness ?? "Hand" : null)
+      classifyAsl(frameLandmarks, mirrorMode === "on" || (mirrorMode === "auto" && handedness === "Left"))
+      return
+    }
     if (!bundle.meta || !bundle.classifier || !bundle.dynamic) {
       return
     }
@@ -115,15 +156,36 @@ export function RecognizePage() {
       return overrideCustom("dynamic", () => embedDynamic(bundle.dynamicEmbed!, flat), base, bundle)
     }
     engine.deps.motion = (frames, mirror) => motionEnergy(normalizeSequence(frames, meta.sequence_length, { mirror, zeroZ }))
-    const result = engine.push(frameLandmarks, { mode: currentMode, mirror: shouldMirror, sampleKind })
+    const engineMode = currentMode === "asl" ? "auto" : currentMode
+    const result = engine.push(frameLandmarks, { mode: engineMode, mirror: shouldMirror, sampleKind, second })
     setLive(result.live)
     if (result.commit) commit(result.commit.label, result.commit.kind)
   }
 
+  const aslModelRef = useRef<AslWordsModel | null>(null)
+  useEffect(() => {
+    aslModelRef.current = aslModel
+  }, [aslModel])
+  useEffect(() => {
+    if (mode !== "asl" || aslModel) return
+    loadAslWords(asset("models/asl_words.json"))
+      .then(setAslModel)
+      .catch(() => setNotice("Could not load the ASL word model. Auto mode still works."))
+  }, [mode, aslModel])
+  useEffect(() => {
+    segment.current.reset()
+    aslFrames.current = []
+  }, [mode])
+
   const classifyRef = useRef(classify)
   useEffect(() => {
     classifyRef.current = classify
-    tracker.setHandler((frame) => classifyRef.current(frame.landmarks, frame.handedness))
+    tracker.setHandler((frame) => {
+      missingFrames.current = frame.landmarks ? 0 : missingFrames.current + 1
+      const next = frame.raw === undefined ? null : framingHint(frame.raw ?? null, frame.brightness ?? null, missingFrames.current)
+      setFraming((prev) => (prev?.text === next?.text ? prev : next))
+      classifyRef.current(frame.landmarks, frame.handedness, undefined, frame.second)
+    })
   })
 
   useEffect(() => {
@@ -185,7 +247,60 @@ export function RecognizePage() {
 
   const customLetters = models.signs.filter((sign) => sign.kind === "static").map((sign) => sign.name)
   const english = session.current.previewEnglish()
+  const hindi = toHindi(session.current.pendingGlosses())
   const chips = session.current.chips()
+
+  /** Speak the current line in the chosen language, falling back to English when there is no Hindi voice. */
+  async function speakLine(line: string, hindiLine: string) {
+    if (lang === "hi" && hindiLine) {
+      if (models.apiBase || (await hasHindiVoice())) {
+        const used = await speak(hindiLine, models.apiBase, "hi")
+        if (used !== "silent") return { used, note: used === "gtts" ? "Played the Hindi server recording." : "Spoke in Hindi with the browser voice." }
+      }
+      const used = await speak(line, models.apiBase, "en")
+      return { used, note: "This device has no Hindi voice, so the English line was spoken. The Hindi text is shown above." }
+    }
+    const used = await speak(line, models.apiBase, "en")
+    return { used, note: used === "gtts" ? "Played the server recording." : used === "browser" ? "Spoke with the browser voice." : "This browser has no speech voice, so the sentence is shown on screen only." }
+  }
+
+  function currentText(): string {
+    return transcriptText(transcript, english ? { english, hindi } : null, lang === "hi")
+  }
+
+  async function copyLine() {
+    if (!english) return setNotice("Nothing to copy yet.")
+    const text = lang === "hi" && hindi ? `${english}\n${hindi}` : english
+    try {
+      await navigator.clipboard.writeText(text)
+      setNotice("Copied the sentence.")
+    } catch {
+      setNotice("Copy is blocked in this browser. Select the sentence and press Ctrl+C.")
+    }
+  }
+
+  async function shareLine() {
+    if (!english) return setNotice("Nothing to share yet.")
+    const text = lang === "hi" && hindi ? `${english}\n${hindi}` : english
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: "SignSpeak AI", text })
+        setNotice("Shared.")
+        return
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return setNotice("Share cancelled.")
+      }
+    }
+    await copyLine()
+    setNotice("Sharing is not available here, so the sentence was copied instead.")
+  }
+
+  function downloadTranscript() {
+    const text = currentText()
+    if (!text) return setNotice("Nothing to download yet. Sign a sentence first.")
+    downloadText(text, `signspeak-transcript-${new Date().toISOString().slice(0, 10)}.txt`)
+    setNotice("Downloaded the transcript as a .txt file.")
+  }
 
   async function runPresentation() {
     if (presenting) return
@@ -219,6 +334,7 @@ export function RecognizePage() {
 
   return (
     <div className="space-y-8">
+      {tipsOpen && <TipsDialog onClose={() => setTipsOpen(false)} />}
       <header className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr] lg:items-end">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">SignSpeak AI</p>
@@ -257,6 +373,15 @@ export function RecognizePage() {
             ref={tracker.canvasRef}
             className="pointer-events-none absolute inset-0 h-full w-full object-cover [transform:scaleX(-1)]"
           />
+          {tracker.running && framing && (
+            <p
+              data-testid="camera-hint"
+              role="status"
+              className={`absolute bottom-3 left-1/2 max-w-[90%] -translate-x-1/2 rounded-full px-3 py-1 text-center text-sm ${framing.tone === "ok" ? "bg-[color-mix(in_srgb,#1a1713_70%,transparent)] text-[#d9f2d0]" : "bg-[#f4f0e6] text-[#1a1713]"}`}
+            >
+              {framing.text}
+            </p>
+          )}
           {!tracker.running && !showingSample && (
             <div className="absolute inset-0 grid place-items-center bg-[color-mix(in_srgb,#1a1713_55%,transparent)] p-6 text-center text-[#f4f0e6]">
               <div>
@@ -274,6 +399,7 @@ export function RecognizePage() {
           ) : (
             <Button variant="quiet" onClick={tracker.stop}>Stop camera</Button>
           )}
+          <Button variant="quiet" onClick={() => setTipsOpen(true)}>Tips for best accuracy</Button>
           <Button variant="quiet" onClick={() => void playSample("static", "B")}>Play sample B</Button>
           <Button variant="quiet" onClick={() => void playSample("dynamic", "HELLO")}>Play sample HELLO</Button>
           <span className="text-xs text-[var(--muted)]">
@@ -310,14 +436,14 @@ export function RecognizePage() {
 
         <div className="panel space-y-4 p-4">
           <div className="flex gap-1 rounded-full bg-[var(--bg)] p-1" role="group" aria-label="Recognition mode">
-            {(["auto", "letters", "words"] as const).map((item) => (
+            {(["auto", "letters", "words", "asl"] as const).map((item) => (
               <button
                 key={item}
-                className={`flex-1 rounded-full px-2 py-1.5 text-sm capitalize ${mode === item ? "bg-[var(--ink)] text-[var(--bg)]" : ""}`}
+                className={`flex-1 whitespace-nowrap rounded-full px-2 py-1.5 text-sm ${mode === item ? "bg-[var(--ink)] text-[var(--bg)]" : ""}`}
                 onClick={() => setMode(item)}
                 aria-pressed={mode === item}
               >
-                {item}
+                {MODE_LABELS[item]}
               </button>
             ))}
           </div>
@@ -348,18 +474,41 @@ export function RecognizePage() {
             <p className="serif min-h-12 text-3xl" data-testid="sentence">
               {english || <span className="text-[var(--muted)]">Letters and words will gather here.</span>}
             </p>
+            {lang === "hi" && (
+              <p className="min-h-6 text-xl" lang="hi" data-testid="sentence-hindi">
+                {hindi || <span className="text-sm text-[var(--muted)]">हिन्दी वाक्य यहाँ दिखेगा।</span>}
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="quiet" onClick={() => { session.current.space(); bump() }}>Space</Button>
             <Button variant="quiet" onClick={() => { session.current.delete(); bump() }}>Delete</Button>
             <Button variant="quiet" onClick={() => { session.current.clear(); bump() }}>Clear</Button>
+            <label className="flex items-center gap-1 text-sm">
+              <span className="sr-only sm:not-sr-only">Voice</span>
+              <select
+                aria-label="Speech language"
+                className="rounded-lg border border-[var(--line)] bg-[var(--bg)] px-2 py-1"
+                value={lang}
+                onChange={(event) => setLang(event.target.value as "en" | "hi")}
+              >
+                <option value="en">English</option>
+                <option value="hi">हिन्दी (Hindi)</option>
+              </select>
+            </label>
             <Button
               onClick={() => {
                 const line = session.current.previewEnglish()
-                void speak(line, models.apiBase).then((used) => {
+                const hindiLine = toHindi(session.current.pendingGlosses())
+                if (!line) {
+                  setNotice("Nothing to say yet.")
+                  return
+                }
+                void speakLine(line, hindiLine).then(({ used, note }) => {
                   setVoice(used)
-                  setNotice(used === "gtts" ? "Played the server recording." : used === "browser" ? "Spoke with the browser voice." : line ? "This browser has no speech voice, so the sentence is shown on screen only." : "Nothing to say yet.")
-                  if (line) session.current.finish()
+                  setNotice(note)
+                  setTranscript((list) => [...list, { at: new Date(), english: line, hindi: hindiLine }])
+                  session.current.finish()
                   bump()
                 })
               }}
@@ -367,6 +516,11 @@ export function RecognizePage() {
               Speak
             </Button>
           </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Sentence tools">
+          <Button variant="quiet" onClick={() => void copyLine()}>Copy</Button>
+          <Button variant="quiet" onClick={() => void shareLine()}>Share</Button>
+          <Button variant="quiet" onClick={downloadTranscript}>Download .txt</Button>
         </div>
         <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Confirmed signs">
           {chips.length === 0 && <span className="text-sm text-[var(--muted)]">No signs confirmed yet.</span>}
@@ -425,7 +579,7 @@ export function RecognizePage() {
             <article key={sign.id} className="panel p-4">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="font-medium">{sign.title}</h3>
-                <Badge tone={sign.id === "HELP" || sign.id === "SCHOOL" ? "warn" : "neutral"}>{sign.id === "HELP" || sign.id === "SCHOOL" ? "Not detected" : "Rule"}</Badge>
+                <Badge tone={sign.id === "HELP" || sign.id === "SCHOOL" ? "good" : "neutral"}>{sign.id === "HELP" || sign.id === "SCHOOL" ? "Two hands" : "Rule"}</Badge>
               </div>
               <p className="mt-1 text-sm">{sign.show}</p>
               <p className="mt-1 text-xs text-[var(--muted)]">{sign.detail}</p>
@@ -472,4 +626,38 @@ function overrideCustom(
   const alt = predictHead(head.model, vector(), head.labels)
   if (custom.has(alt.label) && alt.confidence >= 0.55) return alt
   return base
+}
+
+function TipsDialog({ onClose }: { onClose: () => void }) {
+  const closeRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    closeRef.current?.focus()
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [onClose])
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-[color-mix(in_srgb,#1a1713_60%,transparent)] p-4" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tips-title"
+        className="panel max-h-[90vh] w-full max-w-lg overflow-auto p-5"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2 id="tips-title" className="serif text-3xl">Tips for best accuracy</h2>
+        <ul className="mt-3 list-disc space-y-2 pl-5 text-sm">
+          {ACCURACY_TIPS.map((tip) => (
+            <li key={tip}>{tip}</li>
+          ))}
+        </ul>
+        <p className="mt-3 text-sm text-[var(--muted)]">While the camera runs, a hint under the picture says if your hand is too far, too close, out of frame or too dark.</p>
+        <div className="mt-4 flex justify-end">
+          <Button ref={closeRef} onClick={onClose}>Got it</Button>
+        </div>
+      </div>
+    </div>
+  )
 }

@@ -21,10 +21,11 @@ export function drawLandmarks(
   canvas: HTMLCanvasElement,
   points: Point[],
   space: "image" | "normalized",
+  clear = true,
 ) {
   const ctx = canvas.getContext("2d")
   if (!ctx) return
-  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  if (clear) ctx.clearRect(0, 0, canvas.width, canvas.height)
   const project = (p: Point): [number, number] => {
     if (space === "image") {
       return [p[0] * canvas.width, p[1] * canvas.height]

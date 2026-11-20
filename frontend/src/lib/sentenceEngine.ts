@@ -203,9 +203,13 @@ export class SentenceSession {
     return this.spelling ? [...this.glosses, this.spelling] : [...this.glosses]
   }
 
+  /** Confirmed glosses plus the word being spelled, autocorrected. */
+  pendingGlosses(): string[] {
+    return this.spelling ? [...this.glosses, autocorrect(this.spelling)] : [...this.glosses]
+  }
+
   previewEnglish(): string {
-    const pending = this.spelling ? [...this.glosses, autocorrect(this.spelling)] : this.glosses
-    return toEnglish(pending)
+    return toEnglish(this.pendingGlosses())
   }
 
   finish(): string {

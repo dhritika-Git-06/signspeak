@@ -42,8 +42,8 @@ export const WORD_SIGNS: WordSign[] = [
   { id: "WHAT", title: "What", method: "rule", show: "Open hand shakes", detail: "Open hand shakes sideways with a smaller motion than HELLO." },
   { id: "NAME", title: "Name", method: "rule", show: "Two fingers tap", detail: "Index and middle extended together, hand taps up and down. One-hand stand-in for the two-hand ASL NAME." },
   { id: "FINE", title: "Fine", method: "rule", show: "OK handshape", detail: "Thumb and index touch; the other three fingers are extended. Used here for “I’m fine,” not the ASL 5-hand FINE." },
-  { id: "HELP", title: "Help", method: "rule", show: "Fist rests on an open palm", detail: "Not detected from one hand. Use the Train page or fingerspell HELP." },
-  { id: "SCHOOL", title: "School", method: "rule", show: "Two hands clap", detail: "Not detected from one hand. Fingerspell SCHOOL." },
+  { id: "HELP", title: "Help", method: "rule", show: "Fist resting on the other open palm (two hands)", detail: "Two hands in view: a fist (thumb up is fine) sits just above a flat open hand. Hold it for half a second." },
+  { id: "SCHOOL", title: "School", method: "rule", show: "Two flat hands clap twice", detail: "Two open hands in view: one claps down onto the other at least twice." },
   { id: "HOME", title: "Home", method: "rule", show: "Pinch, then a flat hand", detail: "First half of the gesture is a pinch and the second half is an open hand." },
 ]
 
@@ -53,7 +53,10 @@ export const STATIC_WORDS = new Set(["LOVE", "FINE", "WATER", "NEED", "MORE", "G
 /** Frames a still word shape must be held (about 0.4 s) before it counts. */
 const STATIC_HOLD = 12
 
-const DETECTED = new Set(WORD_SIGNS.filter((sign) => !["HELP", "SCHOOL"].includes(sign.id)).map((sign) => sign.id))
+/** Signs that need both hands in view. */
+export const TWO_HAND_WORDS = new Set(["HELP", "SCHOOL"])
+
+const DETECTED = new Set(WORD_SIGNS.filter((sign) => !TWO_HAND_WORDS.has(sign.id)).map((sign) => sign.id))
 
 function dist2(a: Point, b: Point): number {
   return Math.hypot(a[0] - b[0], a[1] - b[1])
@@ -387,6 +390,71 @@ export function scaleFrames(frames: Point[][], factor: (index: number, count: nu
     const [wx, wy] = frame[0]
     return frame.map((point) => [wx + (point[0] - wx) * k, wy + (point[1] - wy) * k, point[2] * k] as Point)
   })
+}
+
+function palmCentre(frame: Point[]): [number, number] {
+  return [(frame[0][0] + frame[5][0] + frame[9][0] + frame[17][0]) / 4, (frame[0][1] + frame[5][1] + frame[9][1] + frame[17][1]) / 4]
+}
+
+/**
+ * Two-hand words, from the main hand's frames and the second hand's frames (null where only one
+ * hand was seen). HELP: a fist resting just above a flat open hand. SCHOOL: two flat hands that
+ * clap together at least twice.
+ */
+export function recognizeTwoHands(main: Point[][], second: Array<Point[] | null>): WordHit | null {
+  const n = Math.min(main.length, second.length, 45)
+  if (n < 10) return null
+  const pairs: Array<[Point[], Point[]]> = []
+  for (let i = main.length - n, j = second.length - n; i < main.length; i++, j++) {
+    const other = second[j]
+    if (other) pairs.push([main[i], other])
+  }
+  // Both hands must be in most of the last second, including right now.
+  if (pairs.length < n * 0.7 || !second[second.length - 1]) return null
+  const recent = pairs.slice(-12)
+  let help = 0
+  for (const [a, b] of recent) {
+    const sa = shapeOf(a)
+    const sb = shapeOf(b)
+    const unit = (palmSize(a) + palmSize(b)) / 2 || 1e-3
+    const fistHand = !open(sa) && open(sb) ? a : !open(sb) && open(sa) ? b : null
+    const flatHand = fistHand === a ? b : fistHand === b ? a : null
+    if (!fistHand || !flatHand) continue
+    const fs = shapeOf(fistHand)
+    if (fs.index || fs.middle || fs.ring || fs.pinky) continue
+    const [fx, fy] = palmCentre(fistHand)
+    const [px, py] = palmCentre(flatHand)
+    // The fist sits on the flat hand: close together, and the fist's wrist not below the palm centre.
+    if (Math.hypot(fx - px, fy - py) / unit < 2.2 && fistHand[0][1] <= py + unit * 0.6) help += 1
+  }
+  if (help >= 9) return { id: "HELP", score: 0.92 }
+  const bothOpen = pairs.filter(([a, b]) => open(shapeOf(a)) && open(shapeOf(b))).length
+  if (bothOpen >= pairs.length * 0.6) {
+    const gaps = pairs.map(([a, b]) => {
+      const unit = (palmSize(a) + palmSize(b)) / 2 || 1e-3
+      return Math.hypot(a[9][0] - b[9][0], a[9][1] - b[9][1]) / unit
+    })
+    if (reversals(gaps, 0.5) >= 2 && Math.min(...gaps) < 2.2) return { id: "SCHOOL", score: 0.92 }
+  }
+  return null
+}
+
+/**
+ * True while a second hand is in view and close to the main hand, as in HELP or SCHOOL. One-hand
+ * word rules wait then, so the first clap of SCHOOL is not read as THANKS.
+ */
+export function handsTogether(main: Point[][], second: Array<Point[] | null>, span = 15): boolean {
+  const n = Math.min(main.length, second.length, span)
+  if (n < 5) return false
+  let close = 0
+  for (let k = 1; k <= n; k++) {
+    const a = main[main.length - k]
+    const b = second[second.length - k]
+    if (!b) continue
+    const unit = (palmSize(a) + palmSize(b)) / 2 || 1e-3
+    if (Math.hypot(a[9][0] - b[9][0], a[9][1] - b[9][1]) / unit < 3) close += 1
+  }
+  return close >= n * 0.6
 }
 
 /** Aspect of the built-in demo frames (a 16:9 camera view). */

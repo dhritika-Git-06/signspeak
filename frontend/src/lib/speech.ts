@@ -32,23 +32,36 @@ function pickVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null 
   )
 }
 
-export async function speakBrowser(text: string): Promise<boolean> {
+/** A Hindi voice, if this device has one. */
+export function pickHindiVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | null {
+  return voices.find((v) => v.lang?.replace("_", "-").toLowerCase().startsWith("hi")) ?? null
+}
+
+/** Whether this browser offers a Hindi voice (waits briefly for the voice list). */
+export async function hasHindiVoice(): Promise<boolean> {
+  if (!hasSpeech()) return false
+  return pickHindiVoice(await voicesReady()) !== null
+}
+
+export async function speakBrowser(text: string, lang: "en" | "hi" = "en"): Promise<boolean> {
   if (!text.trim() || !hasSpeech()) return false
   const synth = window.speechSynthesis
   const voices = await voicesReady()
+  const hindi = lang === "hi" ? pickHindiVoice(voices) : null
+  if (lang === "hi" && !hindi) return false
   const wasBusy = synth.speaking || synth.pending
   synth.cancel()
   // Speaking straight after cancel() is sometimes ignored by Chrome.
   if (wasBusy) await new Promise((resolve) => window.setTimeout(resolve, 60))
   const utterance = new SpeechSynthesisUtterance(text)
   utterance.rate = 0.95
-  const voice = pickVoice(voices)
+  const voice = hindi ?? pickVoice(voices)
   try {
     if (voice) utterance.voice = voice
   } catch {
     /* an odd voice object should not stop the line from being spoken */
   }
-  utterance.lang = voice?.lang ?? "en-US"
+  utterance.lang = voice?.lang ?? (lang === "hi" ? "hi-IN" : "en-US")
   utterance.onend = () => {
     if (current === utterance) current = null
   }
@@ -58,7 +71,7 @@ export async function speakBrowser(text: string): Promise<boolean> {
   return true
 }
 
-export async function speak(text: string, apiBase: string | null): Promise<"gtts" | "browser" | "silent"> {
+export async function speak(text: string, apiBase: string | null, lang: "en" | "hi" = "en"): Promise<"gtts" | "browser" | "silent"> {
   const cleaned = text.trim()
   if (!cleaned) return "silent"
   if (apiBase) {
@@ -66,7 +79,7 @@ export async function speak(text: string, apiBase: string | null): Promise<"gtts
       const res = await fetch(`${apiBase}/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: cleaned, lang: "en" }),
+        body: JSON.stringify({ text: cleaned, lang }),
       })
       if (res.ok) {
         const blob = await res.blob()
@@ -83,7 +96,7 @@ export async function speak(text: string, apiBase: string | null): Promise<"gtts
       /* fall through to the browser voice */
     }
   }
-  return (await speakBrowser(cleaned)) ? "browser" : "silent"
+  return (await speakBrowser(cleaned, lang)) ? "browser" : "silent"
 }
 
 export function stopSpeech() {
