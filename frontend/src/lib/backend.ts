@@ -10,8 +10,9 @@ export async function detectBackend(): Promise<string | null> {
   const candidates: string[] = []
   const configured = import.meta.env.VITE_API_URL as string | undefined
   if (configured) candidates.push(configured.replace(/\/$/, ""))
-  candidates.push("/api")
   const host = window.location.hostname
+  // GitHub Pages is static hosting, so there is no /api there; skip the probe and its 404.
+  if (!host.endsWith("github.io")) candidates.push("/api")
   if (host === "localhost" || host === "127.0.0.1") candidates.push("http://127.0.0.1:8765")
   for (const base of candidates) {
     try {

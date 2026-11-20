@@ -28,7 +28,7 @@ export function Layout() {
               <span className="block text-xs text-[var(--muted)]">Dhritika Sahu</span>
             </span>
           </NavLink>
-          <nav className="flex flex-1 flex-wrap gap-1" aria-label="Primary">
+          <nav className="order-last flex w-full flex-wrap gap-1 sm:order-none sm:w-auto sm:flex-1" aria-label="Primary">
             {links.map((link) => (
               <NavLink
                 key={link.to}

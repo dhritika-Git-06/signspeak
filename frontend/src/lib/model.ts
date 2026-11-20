@@ -76,10 +76,13 @@ export function buildStaticEmbed(filters: number[]) {
   return model
 }
 
+/** These layers always receive trained weights, so skip the slow orthogonal initialiser. */
+const PRELOADED = { kernelInitializer: "zeros", recurrentInitializer: "zeros" } as const
+
 export function buildDynamic(labels: string[], units: number[]) {
   const model = tf.sequential()
-  model.add(tf.layers.lstm({ units: units[0], returnSequences: true, inputShape: [30, 63] }))
-  model.add(tf.layers.lstm({ units: units[1], returnSequences: false }))
+  model.add(tf.layers.lstm({ units: units[0], returnSequences: true, inputShape: [30, 63], ...PRELOADED }))
+  model.add(tf.layers.lstm({ units: units[1], returnSequences: false, ...PRELOADED }))
   model.add(tf.layers.dense({ units: 32, activation: "relu" }))
   model.add(tf.layers.dense({ units: labels.length, activation: "softmax" }))
   return model
@@ -87,8 +90,8 @@ export function buildDynamic(labels: string[], units: number[]) {
 
 export function buildDynamicEmbed(units: number[]) {
   const model = tf.sequential()
-  model.add(tf.layers.lstm({ units: units[0], returnSequences: true, inputShape: [30, 63] }))
-  model.add(tf.layers.lstm({ units: units[1], returnSequences: false }))
+  model.add(tf.layers.lstm({ units: units[0], returnSequences: true, inputShape: [30, 63], ...PRELOADED }))
+  model.add(tf.layers.lstm({ units: units[1], returnSequences: false, ...PRELOADED }))
   model.add(tf.layers.dense({ units: 32, activation: "relu" }))
   return model
 }

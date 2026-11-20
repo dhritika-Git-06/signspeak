@@ -15,6 +15,7 @@ export function useHandTracker() {
   const onFrame = useRef<(frame: HandFrame) => void>(() => {})
   const raf = useRef(0)
   const active = useRef(false)
+  const starting = useRef(false)
   const [running, setRunning] = useState(false)
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle")
   const [error, setError] = useState<string | null>(null)
@@ -68,16 +69,25 @@ export function useHandTracker() {
   }
 
   async function start() {
-    if (active.current) return
+    if (active.current || starting.current) return
+    starting.current = true
     setError(null)
+    let stream: MediaStream | null = null
     try {
-      const marker = await ensure()
-      const stream = await navigator.mediaDevices.getUserMedia({
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw Object.assign(new Error("Camera needs a secure (https) page in a modern browser."), { name: "InsecureContext" })
+      }
+      // Ask for the camera first so the permission prompt appears straight away.
+      stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       })
+      const marker = await ensure()
       const video = videoRef.current
-      if (!video) return
+      if (!video) {
+        stream.getTracks().forEach((track) => track.stop())
+        return
+      }
       video.srcObject = stream
       await video.play()
       active.current = true
@@ -106,14 +116,13 @@ export function useHandTracker() {
       }
       loop()
     } catch (err) {
+      stream?.getTracks().forEach((track) => track.stop())
+      active.current = false
       setStatus("error")
       setRunning(false)
-      const message = err instanceof Error ? err.message : "Camera unavailable"
-      setError(
-        message.toLowerCase().includes("denied") || message.toLowerCase().includes("notallowed")
-          ? "Camera permission was blocked. Allow the camera, or use Play sample."
-          : message,
-      )
+      setError(cameraMessage(err))
+    } finally {
+      starting.current = false
     }
   }
 
@@ -150,4 +159,22 @@ export function useHandTracker() {
       drawLandmarks(canvas, points, space)
     },
   }
+}
+
+/** Plain-language camera errors, with the no-camera fallback named. */
+export function cameraMessage(err: unknown): string {
+  const name = err instanceof Error || (typeof DOMException !== "undefined" && err instanceof DOMException) ? (err as Error).name : ""
+  const message = err instanceof Error ? err.message : String(err ?? "")
+  const fallback = " You can still use Play presentation demo or the recorded samples."
+  if (name === "NotAllowedError" || name === "SecurityError" || /denied|notallowed|permission/i.test(message)) {
+    return "Camera permission was blocked. Click the camera icon in the address bar, allow it, then press Start camera again." + fallback
+  }
+  if (name === "NotFoundError" || name === "OverconstrainedError" || /not found|no device/i.test(message)) {
+    return "No camera was found on this device." + fallback
+  }
+  if (name === "NotReadableError" || name === "AbortError" || /could not start|in use/i.test(message)) {
+    return "The camera is busy in another app or tab (Zoom, Meet, Camera). Close it and press Start camera again." + fallback
+  }
+  if (name === "InsecureContext") return message + fallback
+  return `Could not start the camera or hand tracker: ${message || "unknown error"}.` + fallback
 }
