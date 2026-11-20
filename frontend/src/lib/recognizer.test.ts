@@ -3,7 +3,8 @@ import type { Point } from "./hands"
 import { motionEnergy, normalizeSequence } from "./normalize"
 import { Recognizer, type RecognitionMode, type SignKind } from "./recognizer"
 import { SentenceSession } from "./sentenceEngine"
-import { demoSequence, posedHand, recognizeWord } from "./words"
+import { demoSquare, palmSize, recognizeWord } from "./words"
+import { SHAPES, placeHand } from "./handModel"
 
 /**
  * Simulated webcam streams at 30 fps: hand-landmark jitter, slow drift, single lost frames,
@@ -41,11 +42,15 @@ const LOOK_ALIKES: Record<string, [string, string[]]> = {
   B: ["B", ["C"]],
 }
 
+function pose(shape: keyof typeof SHAPES): Point[] {
+  return placeHand(SHAPES[shape], { x: 0.55, y: 0.62, size: 0.22, roll: 0, yaw: 0, pitch: 0, aspect: 1, hand: "Right" })
+}
+
 function basePose(id: string): Point[] {
-  if (id === "ME" || id === "WATER") return demoSequence(id)[0]
-  if (id === "WANT" || id === "B") return posedHand({ index: 1, middle: 1, ring: 1, pinky: 1, thumb: 1 })
-  if (id === "S") return posedHand({ index: 0.12, middle: 0.12, ring: 0.12, pinky: 0.12, thumb: 0 })
-  if (id === "C") return posedHand({ index: 0.45, middle: 0.45, ring: 0.45, pinky: 0.45, thumb: 0 })
+  if (id === "ME" || id === "WATER") return demoSquare(id).at(-1)!
+  if (id === "WANT" || id === "B") return pose("open5")
+  if (id === "S") return pose("fistS")
+  if (id === "C") return pose("C")
   throw new Error(id)
 }
 
@@ -85,9 +90,17 @@ function hold(id: string, frames: number, rand: () => number, offset: [number, n
 /** Move from one sign to the next, hand in view, with the letter model guessing at random. */
 function transition(from: Point[], to: Point[], frames: number, rand: () => number): Tagged {
   const out: Tagged = { frames: [], letters: [] }
+  // A real hand keeps its size while it changes shape, so blend the shape about the wrist and
+  // keep the palm size moving smoothly from one sign to the next.
+  const sizeFrom = palmSize(from)
+  const sizeTo = palmSize(to)
   for (let i = 1; i <= frames; i++) {
     const t = i / (frames + 1)
-    const p = from.map((a, j) => [a[0] + (to[j][0] - a[0]) * t, a[1] + (to[j][1] - a[1]) * t + Math.sin(t * Math.PI) * 0.05, 0] as Point)
+    const wx = from[0][0] + (to[0][0] - from[0][0]) * t
+    const wy = from[0][1] + (to[0][1] - from[0][1]) * t + Math.sin(t * Math.PI) * 0.05
+    const rel = from.map((a, j) => [a[0] - from[0][0] + (to[j][0] - to[0][0] - (a[0] - from[0][0])) * t, a[1] - from[0][1] + (to[j][1] - to[0][1] - (a[1] - from[0][1])) * t, 0] as Point)
+    const k = (sizeFrom + (sizeTo - sizeFrom) * t) / (palmSize(rel) || 1e-6)
+    const p = rel.map((q) => [wx + q[0] * k, wy + q[1] * k, 0] as Point)
     out.frames.push(jitter(p, rand))
     out.letters.push(null)
   }
@@ -245,7 +258,7 @@ describe("live recognizer: fingerspelling", () => {
 
 describe("word rules on live-like landmarks", () => {
   it("WANT is read from the hand shrinking as it pulls back, not from wrist z (always 0 in MediaPipe)", () => {
-    const open = posedHand({ index: 1, middle: 1, ring: 1, pinky: 1, thumb: 1 })
+    const open = pose("open5")
     const frames = Array.from({ length: 14 }, (_, i) => scaled(open, 1 - 0.25 * Math.min(1, i / 10)))
     expect(frames.every((f) => f[0][2] === 0)).toBe(true)
     expect(recognizeWord(frames)?.id).toBe("WANT")
@@ -256,8 +269,8 @@ describe("word rules on live-like landmarks", () => {
 
   it("motion from the previous sign does not leak into the next one", () => {
     // ME held low, then the open hand appears higher up: that move must not read as THANKS.
-    const me = Array.from({ length: 30 }, () => demoSequence("ME")[0])
-    const open = posedHand({ index: 1, middle: 1, ring: 1, pinky: 1, thumb: 1 })
+    const me = Array.from({ length: 30 }, () => demoSquare("ME").at(-1)!)
+    const open = pose("open5")
     const later = Array.from({ length: 10 }, () => moved(open, 0, 0.12))
     expect(recognizeWord([...me, ...later])).toBeNull()
   })

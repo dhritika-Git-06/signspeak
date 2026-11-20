@@ -61,9 +61,11 @@ test("recognition settings: mode buttons, confidence slider, auto-speak and mirr
   void errors
   await openApp(page)
   const modes = page.getByRole("group", { name: "Recognition mode" })
+  const notes: Record<string, RegExp> = { letters: /All 24 still letters/, words: /Word signs only/, auto: /Use Letters to spell/ }
   for (const m of ["letters", "words", "auto"]) {
     await modes.getByRole("button", { name: m }).click()
     await expect(modes.getByRole("button", { name: m })).toHaveAttribute("aria-pressed", "true")
+    await expect(page.getByTestId("mode-note")).toHaveText(notes[m])
   }
   const slider = page.getByRole("slider")
   await slider.focus()

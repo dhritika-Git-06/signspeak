@@ -7,7 +7,7 @@ test("navigation links, logo, theme toggle, skip link and footer", async ({ page
   for (const [name, heading] of [
     ["Train", "Teach a sign"],
     ["How it works", "From a hand shape to a spoken sentence"],
-    ["Evaluation", "Numbers from the held-out sets"],
+    ["Evaluation", "Measured accuracy"],
     ["Recognize", "Read a hand. Build a sentence. Hear it."],
   ] as const) {
     await nav.getByRole("link", { name, exact: true }).click()

@@ -65,6 +65,12 @@ test("Evaluation page: numbers, images and dataset links", async ({ page, errors
   void errors
   await openApp(page, "evaluation")
   await expect(page.getByText("94.19%").first()).toBeVisible()
+  // Real PopSign word model and the synthetic per-sign tests, each clearly labelled.
+  await expect(page.getByText("89.38%").first()).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Real ASL words: trained model vs rules" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Per-sign tests through the live pipeline" })).toBeVisible()
+  await expect(page.getByText("Real data").first()).toBeVisible()
+  await expect(page.getByText("Synthetic test").first()).toBeVisible()
   for (const img of await page.locator("main img").all()) {
     await expect(img).toBeVisible()
     expect(await img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true)

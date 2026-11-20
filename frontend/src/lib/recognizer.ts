@@ -1,6 +1,6 @@
 import type { Point } from "./hands"
 import { Stabilizer, UNSURE, isLetterLabel, type StabilizerOptions } from "./stabilizer"
-import { recognizeWord, shapeSignature } from "./words"
+import { STATIC_WORDS, palmSize, recognizeWord, shapeSignature } from "./words"
 
 export type SignKind = "letter" | "word"
 export type RecognitionMode = "auto" | "letters" | "words"
@@ -59,6 +59,45 @@ export const LIVE_STABILIZER: StabilizerOptions = {
 const STICKY_RELEASE = 8
 /** Confidence the motion model needs before J or Z is accepted in auto mode. */
 const MOTION_LETTER_CONFIDENCE = 0.9
+const MOTION_LETTERS = new Set(["J", "Z"])
+
+/**
+ * How much the hand is moving right now: wrist travel over the last few frames in palm lengths
+ * (smoothed so tracker jitter does not count), plus any push or pull. Letters and still word
+ * shapes are only read while the hand is held still, so the start of a wave or a push is not
+ * spelled as a letter first.
+ */
+export function recentMotion(frames: Point[][], span = 8): number {
+  if (frames.length < span + 2) return 0
+  const recent = frames.slice(-(span + 2))
+  const unit = recent.map(palmSize).sort((a, b) => a - b)[Math.floor(recent.length / 2)] || 1e-3
+  const smooth: Array<[number, number]> = []
+  for (let i = 1; i < recent.length - 1; i++) {
+    smooth.push([
+      (recent[i - 1][0][0] + recent[i][0][0] + recent[i + 1][0][0]) / 3,
+      (recent[i - 1][0][1] + recent[i][0][1] + recent[i + 1][0][1]) / 3,
+    ])
+  }
+  let path = 0
+  for (let i = 1; i < smooth.length; i++) path += Math.hypot(smooth[i][0] - smooth[i - 1][0], smooth[i][1] - smooth[i - 1][1])
+  const grow = Math.abs(Math.log(palmSize(recent[recent.length - 1]) / (palmSize(recent[0]) || 1e-6)))
+  return path / unit + grow * 4
+}
+
+/** Straight-line wrist travel over the last `span` frames, in palm lengths: slow steady moves show up here. */
+export function recentDrift(frames: Point[][], span = 15): number {
+  if (frames.length < span) return 0
+  const a = frames[frames.length - span][0]
+  const b = frames[frames.length - 1][0]
+  const unit = palmSize(frames[frames.length - 1]) || 1e-3
+  return Math.hypot(b[0] - a[0], b[1] - a[1]) / unit
+}
+
+/** Held signs may drift this far (palm lengths) in half a second. */
+export const DRIFT = 0.25
+
+/** Above this the hand counts as moving (about half a palm of travel in a quarter second). */
+export const MOVING = 0.5
 
 export function kindOf(label: string): SignKind {
   return isLetterLabel(label) ? "letter" : "word"
@@ -145,11 +184,16 @@ export class Recognizer {
     if (!prediction) {
       prediction = { ...this.deps.letter(frame, mirror), kind: "letter" }
     }
+    const moving = !sampleKind && (recentMotion(this.buffer) > MOVING || recentDrift(this.buffer) > DRIFT)
+    // A still letter read from a moving hand is a hand on its way somewhere, not a letter.
+    if (moving && prediction.kind === "letter" && !MOTION_LETTERS.has(prediction.label)) unsure = true
     if (mode !== "letters") {
       const hit = recognizeWord(this.buffer)
-      if (hit) {
+      if (hit && !(moving && STATIC_WORDS.has(hit.id))) {
         prediction = { label: hit.id, confidence: hit.score, top: [{ label: hit.id, confidence: hit.score }], kind: "word" }
         unsure = false
+      } else if (hit) {
+        unsure = true
       }
     }
 

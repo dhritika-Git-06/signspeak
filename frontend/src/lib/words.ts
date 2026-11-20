@@ -1,4 +1,5 @@
-import type { Point } from "./hands"
+import { squareFrame, type Point } from "./hands"
+import { WORD_MOTIONS, performMotion } from "./handModel"
 import { normalizeLandmarks } from "./normalize"
 
 /**
@@ -46,15 +47,38 @@ export const WORD_SIGNS: WordSign[] = [
   { id: "HOME", title: "Home", method: "rule", show: "Pinch, then a flat hand", detail: "First half of the gesture is a pinch and the second half is an open hand." },
 ]
 
+/** Words that are a held handshape with no motion. They need the hand still and the shape held. */
+export const STATIC_WORDS = new Set(["LOVE", "FINE", "WATER", "NEED", "MORE", "GOOD", "ME", "YOU"])
+
+/** Frames a still word shape must be held (about 0.4 s) before it counts. */
+const STATIC_HOLD = 12
+
 const DETECTED = new Set(WORD_SIGNS.filter((sign) => !["HELP", "SCHOOL"].includes(sign.id)).map((sign) => sign.id))
 
-function dist(a: Point, b: Point): number {
-  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])
+function dist2(a: Point, b: Point): number {
+  return Math.hypot(a[0] - b[0], a[1] - b[1])
 }
 
-function extended(pts: Point[], mcp: number, _pip: number, tip: number): boolean {
-  const base = dist(pts[mcp], pts[0])
-  return dist(pts[tip], pts[0]) > base * 1.45 && dist(pts[tip], pts[mcp]) > base * 0.55
+const FINGERS = [
+  [5, 6, 7, 8],
+  [9, 10, 11, 12],
+  [13, 14, 15, 16],
+  [17, 18, 19, 20],
+] as const
+
+/** Per-finger measures in the image plane, in palm lengths. Calibrated on real MediaPipe letter data. */
+function fingerStats(pts: Point[], palm: number) {
+  return FINGERS.map(([mcp, pip, dip, tip]) => {
+    const bones = dist2(pts[mcp], pts[pip]) + dist2(pts[pip], pts[dip]) + dist2(pts[dip], pts[tip])
+    return {
+      /** Tip distance from the wrist over knuckle distance: about 1.9 straight, under 1 curled. */
+      reach: dist2(pts[tip], pts[0]) / (dist2(pts[mcp], pts[0]) || 1e-6),
+      /** 1 when the finger is a straight line. */
+      straightness: dist2(pts[mcp], pts[tip]) / (bones || 1e-6),
+      /** Visible finger length; short when it points at the camera. */
+      length: bones / palm,
+    }
+  })
 }
 
 export interface HandShape {
@@ -63,22 +87,55 @@ export interface HandShape {
   ring: boolean
   pinky: boolean
   thumb: boolean
+  /** Thumb straight and pointing up in the image, other fingers closed: a thumbs-up. */
+  thumbUp: boolean
   pinch: boolean
   ok: boolean
   bentIndex: boolean
+  /** Fingers half bent in a C, neither straight nor closed. */
+  curved: boolean
+  /** Index and middle held together (U) rather than spread (V). */
+  together: boolean
+  /** Thumb stretched well away from the fingers, as in L, Y or I-love-you. */
+  thumbWide: boolean
 }
 
+/**
+ * Landmarks are expected in square image units (x already multiplied by the frame's width / height),
+ * the same space the letter model was trained in.
+ */
 export function shapeOf(raw: Point[]): HandShape {
   const pts = normalizeLandmarks(raw)
-  const index = extended(pts, 5, 6, 8)
-  const middle = extended(pts, 9, 10, 12)
-  const ring = extended(pts, 13, 14, 16)
-  const pinky = extended(pts, 17, 18, 20)
-  const thumb = dist(pts[4], pts[0]) > dist(pts[3], pts[0]) * 1.05 && dist(pts[4], pts[5]) > 0.35
-  const pinch = dist(pts[4], pts[8]) < 0.45 && dist(pts[4], pts[12]) < 0.55 && !index && !middle
-  const ok = dist(pts[4], pts[8]) < 0.4 && middle && ring && pinky
-  const bentIndex = !index && dist(pts[8], pts[5]) < dist(pts[6], pts[5]) * 1.3 && !middle && !ring && !pinky
-  return { index, middle, ring, pinky, thumb, pinch, ok, bentIndex }
+  const palm = dist2(pts[0], pts[9]) || 1e-6
+  const f = fingerStats(pts, palm)
+  const straight = (k: number) => f[k].reach > 1.55 && f[k].straightness > 0.86 && f[k].length > (k === 3 ? 0.55 : 0.72)
+  const gap = dist2(pts[4], pts[8]) / palm
+  const gapMiddle = dist2(pts[4], pts[12]) / palm
+  const thumbOut = dist2(pts[4], pts[5]) / palm
+  const thumb = dist2(pts[4], pts[0]) > dist2(pts[3], pts[0]) * 1.05 && thumbOut > 0.35
+  // Fingertips meeting the thumb: F / OK when the other three stand up, otherwise a flat O pinch.
+  const ok = gap < 0.4 && straight(1) && straight(2) && f[1].reach > 1.6 && f[2].reach > 1.6
+  const pinch = !ok && gap < 0.42 && gapMiddle < 0.65 && f[0].reach > 1.1 && f[1].reach > 1.1
+  // C: four fingers curve round with the thumb well out and its tip facing the fingertips.
+  const curved =
+    !pinch && !ok && f.every((s) => s.reach > 1.2) && thumbOut > 0.6 && gap > 0.42 && gap < 1.02 && (f[0].straightness + f[1].straightness) / 2 < 0.975
+  const index = straight(0) && !pinch && !curved
+  const middle = straight(1) && !pinch && !curved
+  const ring = straight(2) && !pinch && !curved
+  const pinky = straight(3) && !pinch && !curved
+  const closedRest = f[1].reach < 1.1 && f[2].reach < 1.0
+  // X: index half out and hooked (tip folded back near its middle joint), the rest closed.
+  const bentIndex =
+    !index && closedRest && f[0].reach > 1.15 && f[0].reach < 1.7 && dist2(pts[8], pts[6]) / palm < 0.42 && gapMiddle < 0.7
+  const closed = !index && !middle && !ring && !pinky && !pinch && !curved
+  // Thumbs-up: the thumb tip rises clearly above every finger knuckle and points up.
+  const topKnuckle = Math.min(pts[5][1], pts[6][1], pts[9][1], pts[10][1], pts[13][1], pts[17][1])
+  const thumbDx = pts[4][0] - pts[2][0]
+  const thumbDy = pts[4][1] - pts[2][1]
+  const thumbUp = closed && !bentIndex && (topKnuckle - pts[4][1]) / palm > 0.35 && thumbDy / (Math.hypot(thumbDx, thumbDy) || 1e-6) < -0.7
+  const together = dist2(pts[8], pts[12]) / palm < 0.32
+  const thumbWide = thumb && thumbOut > 0.6 && gapMiddle > 0.85
+  return { index, middle, ring, pinky, thumb, thumbUp, pinch, ok, bentIndex, curved, together, thumbWide }
 }
 
 function open(shape: HandShape): boolean {
@@ -86,7 +143,7 @@ function open(shape: HandShape): boolean {
 }
 
 function fist(shape: HandShape): boolean {
-  return !shape.index && !shape.middle && !shape.ring && !shape.pinky && !shape.ok
+  return !shape.index && !shape.middle && !shape.ring && !shape.pinky && !shape.ok && !shape.thumbUp && !shape.bentIndex && !shape.pinch && !shape.curved
 }
 
 function indexOnly(shape: HandShape): boolean {
@@ -97,24 +154,44 @@ function wShape(shape: HandShape): boolean {
   return shape.index && shape.middle && shape.ring && !shape.pinky
 }
 
-function vShape(shape: HandShape): boolean {
+function twoFingers(shape: HandShape): boolean {
   return shape.index && shape.middle && !shape.ring && !shape.pinky
 }
 
 function ily(shape: HandShape): boolean {
-  return shape.thumb && shape.index && !shape.middle && !shape.ring && shape.pinky
+  return shape.thumbWide && shape.index && !shape.middle && !shape.ring && shape.pinky
 }
 
-function uShape(shape: HandShape): boolean {
-  return shape.index && shape.middle && !shape.ring && !shape.pinky
-}
-
-function turns(values: number[], minStep = 0.012): number {
+/**
+ * Direction changes along a path, counted only when the hand travels back at least `swing`
+ * (in palm lengths) from the last turning point. Smooth waves and webcam jitter both count right.
+ */
+export function reversals(values: number[], swing: number): number {
+  if (values.length < 3) return 0
   let count = 0
-  for (let i = 2; i < values.length; i++) {
-    const previous = values[i - 1] - values[i - 2]
-    const next = values[i] - values[i - 1]
-    if (previous * next < 0 && Math.abs(next) > minStep) count += 1
+  let dir = 0
+  let hi = values[0]
+  let lo = values[0]
+  for (const v of values) {
+    hi = Math.max(hi, v)
+    lo = Math.min(lo, v)
+    if (dir === 0) {
+      if (hi - v > swing) {
+        dir = -1
+        lo = v
+      } else if (v - lo > swing) {
+        dir = 1
+        hi = v
+      }
+    } else if (dir > 0 && hi - v > swing) {
+      count += 1
+      dir = -1
+      lo = v
+    } else if (dir < 0 && v - lo > swing) {
+      count += 1
+      dir = 1
+      hi = v
+    }
   }
   return count
 }
@@ -126,11 +203,12 @@ function span(values: number[]): number {
 /** Finger states as a short string, used to tell when the hand keeps the same shape. */
 export function shapeSignature(raw: Point[]): string {
   const s = shapeOf(raw)
-  return [s.index, s.middle, s.ring, s.pinky, s.pinch, s.ok].map((on) => (on ? "1" : "0")).join("")
+  return [s.index, s.middle, s.ring, s.pinky, s.pinch, s.ok, s.thumbUp, s.bentIndex].map((on) => (on ? "1" : "0")).join("")
 }
 
-function dist2(a: Point, b: Point): number {
-  return Math.hypot(a[0] - b[0], a[1] - b[1])
+/** Apparent palm size: mean of the wrist / knuckle triangle in the image. */
+export function palmSize(frame: Point[]): number {
+  return (dist2(frame[0], frame[5]) + dist2(frame[0], frame[17]) + dist2(frame[5], frame[17])) / 3
 }
 
 /**
@@ -138,15 +216,14 @@ function dist2(a: Point, b: Point): number {
  * zero, so the apparent palm size is used instead: log of the inverse of the wrist / knuckle triangle.
  */
 export function palmDepth(frame: Point[]): number {
-  const size = (dist2(frame[0], frame[5]) + dist2(frame[0], frame[17]) + dist2(frame[5], frame[17])) / 3
-  return -Math.log(Math.max(size, 1e-4))
+  return -Math.log(Math.max(palmSize(frame), 1e-4))
 }
 
 /**
  * The newest frames that keep the current handshape, so motion from the previous sign or the
  * move between signs is not read as part of this one. Up to two stray frames in a row are allowed.
  */
-function trailingRun(frames: Point[][], maxLength = 30): Point[][] {
+function trailingRun(frames: Point[][], maxLength = 36): Point[][] {
   const target = shapeSignature(frames[frames.length - 1])
   let start = frames.length - 1
   let misses = 0
@@ -154,13 +231,18 @@ function trailingRun(frames: Point[][], maxLength = 30): Point[][] {
     if (shapeSignature(frames[i]) === target) {
       misses = 0
       start = i
-    } else if (++misses > 2) break
+    } else if (++misses > 3) break
   }
   return frames.slice(start)
 }
 
 function mean(values: number[]): number {
   return values.reduce((a, b) => a + b, 0) / values.length
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b)
+  return sorted[Math.floor(sorted.length / 2)]
 }
 
 export interface WordHit {
@@ -171,106 +253,121 @@ export interface WordHit {
 /** Change in log palm size that counts as a push or pull (about 12 percent bigger or smaller). */
 const DEPTH_STEP = 0.12
 
+/** Unit direction of the index finger in the image (knuckle to tip). */
+function indexDirection(frame: Point[]): [number, number] {
+  const dx = frame[8][0] - frame[5][0]
+  const dy = frame[8][1] - frame[5][1]
+  const n = Math.hypot(dx, dy) || 1e-6
+  return [dx / n, dy / n]
+}
+
+/** Unit direction from wrist to middle knuckle in the image. */
+function handDirection(frame: Point[]): [number, number] {
+  const dx = frame[9][0] - frame[0][0]
+  const dy = frame[9][1] - frame[0][1]
+  const n = Math.hypot(dx, dy) || 1e-6
+  return [dx / n, dy / n]
+}
+
 /** Pick at most one word. Returns null when the pose is better left to the letter model. */
 export function recognizeWord(frames: Point[][]): WordHit | null {
   if (frames.length < 6) return null
-  const first = shapeOf(frames[0])
-  const last = shapeOf(frames[frames.length - 1])
-  // Motion is measured only over the frames that keep this handshape.
+  return wordScores(frames).best
+}
+
+/** The rule inputs and every rule that fired, for tests and the harness report. */
+export function wordScores(frames: Point[][]) {
+  const lastFrame = frames[frames.length - 1]
+  const last = shapeOf(lastFrame)
+  // Motion is measured only over the frames that keep this handshape, in palm lengths.
   const run = trailingRun(frames)
-  const xs = run.map((frame) => frame[0][0])
-  const ys = run.map((frame) => frame[0][1])
+  const unit = median(run.map(palmSize)) || 1e-3
+  const xs = run.map((frame) => frame[0][0] / unit)
+  const ys = run.map((frame) => frame[0][1] / unit)
   const depth = run.map(palmDepth)
-  const edge = Math.max(1, Math.min(3, Math.floor(run.length / 3)))
-  const xTurns = turns(xs)
-  const yTurns = turns(ys)
+  const xTurns = reversals(xs, 0.25)
+  const yTurns = reversals(ys, 0.2)
   const xSpan = span(xs)
   const ySpan = span(ys)
+  // Depth is measured after the hand stops travelling across the frame, so the move into a
+  // sign (where a turning hand also changes its apparent size) is not read as a push or pull.
+  let settledFrom = 0
+  for (let i = 1; i < run.length; i++) {
+    if (Math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]) > 0.12) settledFrom = i
+  }
+  const settled = depth.slice(settledFrom)
+  const zEdge = Math.max(1, Math.min(3, Math.floor(settled.length / 3)))
   // Positive when the hand moves away from the camera (toward the signer).
-  const zDelta = run.length >= 6 ? mean(depth.slice(-edge)) - mean(depth.slice(0, edge)) : 0
+  const zDelta = settled.length >= 6 ? mean(settled.slice(-zEdge)) - mean(settled.slice(0, zEdge)) : 0
   const yDelta = ys[ys.length - 1] - ys[0]
-  const tipsY = frames.map((frame) => frame[8][1])
-  const tipDrop = tipsY[tipsY.length - 1] - tipsY[0]
-  const norm = normalizeLandmarks(frames[frames.length - 1])
-  const indexPointsDown = norm[8][1] > 0.35
-  const indexPointsUp = norm[8][1] < -0.55
+  const xDelta = xs[xs.length - 1] - xs[0]
+  const still = xSpan < 0.6 && ySpan < 0.6
+  const [, indexY] = indexDirection(lastFrame)
+  const indexPointsDown = indexY > 0.55
+  const indexPointsUp = indexY < -0.6
+
+  // Shape changes look back over the last second, across handshapes.
+  const recent = frames.slice(-45)
+  const earlier = recent.slice(0, Math.max(1, Math.floor(recent.length / 2))).map(shapeOf)
+  // A shape change only counts when the first shape was really held, not passed through.
+  const startedOpen = earlier.filter(open).length >= 5
+  const startedPinch = earlier.filter((s) => s.pinch).length >= 5
+  const flatRecent = recent.filter((frame) => {
+    const s = shapeOf(frame)
+    return s.index && s.middle && s.ring
+  })
+  let flip = false
+  if (flatRecent.length >= 4) {
+    const startY = handDirection(flatRecent[0])[1]
+    const endY = handDirection(flatRecent[flatRecent.length - 1])[1]
+    flip = startY < -0.2 && endY > 0.2
+  }
 
   const scores: Record<string, number> = {}
   if (ily(last)) scores.LOVE = 0.95
   if (last.ok) scores.FINE = 0.93
   if (wShape(last) && xTurns < 2) scores.WATER = 0.9
   if (last.bentIndex && yTurns < 2) scores.NEED = 0.9
-  if (last.pinch && yTurns < 2 && yDelta > -0.04) scores.MORE = 0.86
-  if (last.thumb && fist(last) && indexPointsUp) scores.GOOD = 0.9
-  if (open(last) && xTurns >= 2 && xSpan >= 0.08) scores.HELLO = 0.92
-  if (open(last) && xTurns >= 2 && xSpan < 0.08) scores.WHAT = 0.84
-  if (fist(last) && yTurns >= 2) scores.YES = 0.92
-  if (vShape(last) && xTurns >= 2) scores.NO = 0.9
+  if (last.pinch && still && !startedOpen) scores.MORE = 0.86
+  if (last.thumbUp && still) scores.GOOD = 0.9
+  if (open(last) && xTurns >= 2 && xSpan >= 0.7) scores.HELLO = 0.92
+  if (open(last) && xTurns >= 2 && xSpan < 0.7) scores.WHAT = 0.86
+  if (fist(last) && yTurns >= 2 && xTurns < 2) scores.YES = 0.92
+  if (twoFingers(last) && !last.together && xTurns >= 2) scores.NO = 0.9
   if (indexOnly(last) && xTurns >= 2) scores.WHERE = 0.9
-  if (uShape(last) && yTurns >= 2 && !vShape(last)) scores.NAME = 0.84
-  if (open(last) && yDelta > 0.06 && xTurns < 2) scores.THANKS = 0.86
-  if (open(last) && xSpan > 0.05 && ySpan > 0.05 && xTurns >= 1 && yTurns >= 1) scores.PLEASE = 0.84
-  if (fist(last) && xSpan > 0.04 && ySpan > 0.04 && xTurns >= 1 && yTurns >= 1 && yTurns < 3) scores.SORRY = 0.8
+  if (twoFingers(last) && last.together && yTurns >= 2) scores.NAME = 0.86
+  if (open(last) && yDelta > 0.5 && xTurns < 2 && xSpan < ySpan) scores.THANKS = 0.86
+  // A circle: real travel on both axes, at least one turn, and neither axis dominating.
+  const circle = xSpan > 0.4 && ySpan > 0.4 && xSpan < ySpan * 2.2 && ySpan < xSpan * 2.2 && xTurns + yTurns >= 1 && xTurns < 4
+  if (open(last) && circle) scores.PLEASE = 0.88
+  if (fist(last) && circle) scores.SORRY = 0.93
   if (indexOnly(last) && indexPointsDown && xTurns < 2) scores.ME = 0.9
-  if (indexOnly(last) && indexPointsUp && xTurns < 2 && zDelta > -DEPTH_STEP) scores.YOU = 0.88
-  if (indexOnly(last) && xSpan > 0.08 && xTurns < 2 && !indexPointsDown) scores.WE = 0.82
-  if (open(last) && zDelta < -DEPTH_STEP && xTurns < 2) scores.STOP = 0.86
-  if (open(last) && zDelta > DEPTH_STEP && xTurns < 2) scores.WANT = 0.88
-  if (indexOnly(last) && zDelta < -DEPTH_STEP) scores.GO = 0.84
-  if (!indexOnly(last) && zDelta > DEPTH_STEP && !open(last) && !fist(last)) scores.COME = 0.8
-  if (last.pinch && yDelta < -0.05) scores.EAT = 0.88
-  if (!open(last) && !fist(last) && !last.pinch && yDelta < -0.05) scores.DRINK = 0.8
-  if (tipDrop > 0.08 && open(first)) scores.BAD = 0.86
-  if (open(first) && last.pinch) scores.LIKE = 0.9
-  if (first.pinch && open(last)) scores.HOME = 0.86
+  if (indexOnly(last) && !last.thumbWide && indexPointsUp && xTurns < 2 && zDelta > -DEPTH_STEP && xSpan < 0.8) scores.YOU = 0.88
+  if (indexOnly(last) && Math.abs(xDelta) > 0.8 && xTurns < 2 && !indexPointsDown) scores.WE = 0.91
+  // Pushes and pulls travel toward or away from the camera, not across the frame.
+  const depthOnly = run.length >= 8 && xTurns < 2 && span(xs.slice(-15)) < 0.9 && span(ys.slice(-15)) < 0.9
+  if (open(last) && zDelta < -DEPTH_STEP && depthOnly) scores.STOP = 0.89
+  if (open(last) && zDelta > DEPTH_STEP && depthOnly) scores.WANT = 0.89
+  if (indexOnly(last) && zDelta < -DEPTH_STEP && depthOnly) scores.GO = 0.89
+  if (!indexOnly(last) && !open(last) && !last.pinch && !last.thumbUp && zDelta > DEPTH_STEP && depthOnly) scores.COME = 0.87
+  if (last.pinch && yDelta < -0.4 && !startedOpen) scores.EAT = 0.89
+  if (last.curved && yDelta < -0.4) scores.DRINK = 0.89
+  if (flip) scores.BAD = 0.9
+  if (startedOpen && last.pinch) scores.LIKE = 0.9
+  if (startedPinch && open(last)) scores.HOME = 0.9
 
   let best: WordHit | null = null
   for (const [id, score] of Object.entries(scores)) {
     if (!DETECTED.has(id)) continue
+    if (STATIC_WORDS.has(id) && run.length < STATIC_HOLD) continue
     if (!best || score > best.score) best = { id, score }
   }
-  return best && best.score >= 0.8 ? best : null
+  return {
+    best: best && best.score >= 0.8 ? best : null,
+    scores,
+    features: { run: run.length, xTurns, yTurns, xSpan, ySpan, zDelta, yDelta, xDelta, indexY, flip, startedOpen, startedPinch, shape: last },
+  }
 }
-
-function blank(): Point[] {
-  return Array.from({ length: 21 }, () => [0.5, 0.62, 0] as Point)
-}
-
-function placeFinger(pts: Point[], mcp: number, pip: number, dip: number, tip: number, reach: number) {
-  const wrist = pts[0]
-  const base = pts[mcp]
-  const dx = base[0] - wrist[0]
-  const dy = base[1] - wrist[1]
-  const length = Math.hypot(dx, dy) || 0.01
-  const ux = dx / length
-  const uy = dy / length
-  pts[pip] = [base[0] + ux * reach * 0.35, base[1] + uy * reach * 0.35, 0]
-  pts[dip] = [base[0] + ux * reach * 0.7, base[1] + uy * reach * 0.7, 0]
-  pts[tip] = [base[0] + ux * reach, base[1] + uy * reach, 0]
-}
-
-/** A right-hand pose in image coordinates. `reach` near 1 is straight; near 0.15 is curled. */
-export function posedHand(reaches: { index: number; middle: number; ring: number; pinky: number; thumb: number }, pinch = false): Point[] {
-  const pts = blank()
-  pts[5] = [0.58, 0.5, 0]
-  pts[9] = [0.5, 0.46, 0]
-  pts[13] = [0.43, 0.49, 0]
-  pts[17] = [0.37, 0.54, 0]
-  pts[1] = [0.62, 0.6, 0]
-  pts[2] = [0.66, 0.56, 0]
-  pts[3] = [0.69, 0.52, 0]
-  placeFinger(pts, 5, 6, 7, 8, 0.16 * reaches.index)
-  placeFinger(pts, 9, 10, 11, 12, 0.18 * reaches.middle)
-  placeFinger(pts, 13, 14, 15, 16, 0.16 * reaches.ring)
-  placeFinger(pts, 17, 18, 19, 20, 0.14 * reaches.pinky)
-  pts[4] = [0.66 + 0.08 * reaches.thumb, 0.48 - 0.06 * reaches.thumb, 0]
-  if (pinch) pts[4] = [...pts[8]]
-  return pts
-}
-
-const OPEN = { index: 1, middle: 1, ring: 1, pinky: 1, thumb: 1 }
-const FIST = { index: 0.12, middle: 0.12, ring: 0.12, pinky: 0.12, thumb: 0.2 }
-const INDEX = { index: 1, middle: 0.12, ring: 0.12, pinky: 0.12, thumb: 0.15 }
 
 export function still(pose: Point[], count = 10): Point[][] {
   return Array.from({ length: count }, () => pose.map((point) => [...point] as Point))
@@ -292,32 +389,22 @@ export function scaleFrames(frames: Point[][], factor: (index: number, count: nu
   })
 }
 
+/** Aspect of the built-in demo frames (a 16:9 camera view). */
+export const DEMO_ASPECT = 16 / 9
+
+/**
+ * A clean built-in performance of a word, in image coordinates of a 16:9 frame, followed by a short
+ * hold. Uses the same hand model as the accuracy tests. Pass through `squareFrame` before the rules.
+ */
 export function demoSequence(id: string): Point[][] {
-  if (id === "ME") {
-    const pose = posedHand(INDEX)
-    pose[6] = [0.58, 0.7, 0]
-    pose[7] = [0.58, 0.8, 0]
-    pose[8] = [0.58, 0.92, 0]
-    return still(pose)
-  }
-  if (id === "YOU") return still(posedHand(INDEX))
-  if (id === "LOVE") return still(posedHand({ index: 1, middle: 0.12, ring: 0.12, pinky: 1, thumb: 1 }))
-  if (id === "WATER") return still(posedHand({ index: 1, middle: 1, ring: 1, pinky: 0.12, thumb: 0.2 }))
-  if (id === "FINE") return still(posedHand({ index: 0.2, middle: 1, ring: 1, pinky: 1, thumb: 0.2 }, true))
-  if (id === "NEED") return still(posedHand({ index: 0.35, middle: 0.12, ring: 0.12, pinky: 0.12, thumb: 0.2 }))
-  if (id === "MORE") return still(posedHand(FIST, true))
-  if (id === "GOOD") return still(posedHand({ index: 0.12, middle: 0.12, ring: 0.12, pinky: 0.12, thumb: 1 }))
-  if (id === "HELLO") return shift(still(posedHand(OPEN), 16), (i) => [Math.sin((i / 15) * Math.PI * 4) * 0.07, 0, 0])
-  if (id === "YES") return shift(still(posedHand(FIST), 16), (i) => [0, Math.sin((i / 15) * Math.PI * 4) * 0.06, 0])
-  if (id === "NO") return shift(still(posedHand({ index: 1, middle: 1, ring: 0.12, pinky: 0.12, thumb: 0.2 }), 16), (i) => [Math.sin((i / 15) * Math.PI * 4) * 0.06, 0, 0])
-  if (id === "WANT") return scaleFrames(still(posedHand(OPEN), 10), (i, n) => 1 - 0.25 * (i / (n - 1)))
-  if (id === "STOP") return scaleFrames(still(posedHand(OPEN), 10), (i, n) => 1 + 0.3 * (i / (n - 1)))
-  if (id === "THANKS") return shift(still(posedHand(OPEN), 10), (i, n) => [0, 0.1 * (i / (n - 1)), 0])
-  if (id === "WHERE") return shift(still(posedHand(INDEX), 16), (i) => [Math.sin((i / 15) * Math.PI * 4) * 0.05, 0, 0])
-  if (id === "LIKE") return [...still(posedHand(OPEN), 5), ...still(posedHand(FIST, true), 5)]
-  if (id === "EAT") return shift(still(posedHand(FIST, true), 10), (i, n) => [0, -0.08 * (i / (n - 1)), 0])
-  if (id === "HOME") return [...still(posedHand(FIST, true), 6), ...still(posedHand(OPEN), 6)]
-  return still(posedHand(OPEN))
+  const motion = WORD_MOTIONS[id] ?? WORD_MOTIONS.HELLO
+  const frames = performMotion(motion, { rand: () => 0.5, jitter: 0, aspect: DEMO_ASPECT, hand: "Right" })
+  return [...frames, ...Array.from({ length: 10 }, () => frames[frames.length - 1])]
+}
+
+/** The demo frames as the recognizer sees them. */
+export function demoSquare(id: string): Point[][] {
+  return demoSequence(id).map((frame) => squareFrame(frame, DEMO_ASPECT))
 }
 
 export const PRESENTATION_SCRIPT = ["ME", "WANT", "WATER"] as const

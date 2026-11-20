@@ -8,6 +8,15 @@ export const HAND_EDGES: Array<[number, number]> = [
 
 export type Point = [number, number, number]
 
+/**
+ * MediaPipe x and y are fractions of the frame's width and height. Multiplying x by width / height
+ * puts both in the same units, so a hand has the same shape on a 16:9 webcam as in the square
+ * training photos.
+ */
+export function squareFrame(points: Point[], aspect: number): Point[] {
+  return points.map((p) => [p[0] * aspect, p[1], p[2]] as Point)
+}
+
 export function drawLandmarks(
   canvas: HTMLCanvasElement,
   points: Point[],

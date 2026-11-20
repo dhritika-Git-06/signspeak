@@ -1,0 +1,749 @@
+{
+ "real_data": false,
+ "what": "Synthetic tests, not real signers. Words: a 3D hand model performs each one-hand word with random hand (left or right), size, position, rotation, speed, camera shape (4:3 or 16:9) and tracker jitter. Letters: real MediaPipe letter landmarks (MinorvaFalk ASL alphabet CSV, may overlap the letter model's training data) with random rotation, size, position, mirroring and jitter. Every sample goes through the same Recognizer, letter model and stabilizer as the live camera.",
+ "score": "A sample passes only when exactly one sign is added and it is the right one.",
+ "samples_per_sign": 20,
+ "words_auto": {
+  "overall": 93.3,
+  "per_sign": {
+   "HELLO": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "YES": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "NO": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "THANKS": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "PLEASE": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "SORRY": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "ME": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "YOU": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "WE": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "LOVE": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "STOP": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "WATER": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "MORE": {
+    "n": 20,
+    "exactly_once": 95,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {}
+   },
+   "DRINK": {
+    "n": 20,
+    "exactly_once": 70,
+    "extra": 1,
+    "missed": 5,
+    "wrong": {}
+   },
+   "EAT": {
+    "n": 20,
+    "exactly_once": 80,
+    "extra": 0,
+    "missed": 4,
+    "wrong": {}
+   },
+   "GO": {
+    "n": 20,
+    "exactly_once": 95,
+    "extra": 1,
+    "missed": 0,
+    "wrong": {}
+   },
+   "COME": {
+    "n": 20,
+    "exactly_once": 85,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {
+     "B": 3
+    }
+   },
+   "GOOD": {
+    "n": 20,
+    "exactly_once": 95,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {}
+   },
+   "BAD": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "LIKE": {
+    "n": 20,
+    "exactly_once": 45,
+    "extra": 2,
+    "missed": 2,
+    "wrong": {
+     "E": 5,
+     "N": 2
+    }
+   },
+   "WANT": {
+    "n": 20,
+    "exactly_once": 95,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {}
+   },
+   "NEED": {
+    "n": 20,
+    "exactly_once": 80,
+    "extra": 0,
+    "missed": 4,
+    "wrong": {}
+   },
+   "WHERE": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "WHAT": {
+    "n": 20,
+    "exactly_once": 95,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {
+     "HELLO": 1
+    }
+   },
+   "NAME": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "FINE": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "HOME": {
+    "n": 20,
+    "exactly_once": 85,
+    "extra": 0,
+    "missed": 2,
+    "wrong": {
+     "N": 1
+    }
+   }
+  }
+ },
+ "letters_letters_mode": {
+  "overall": 92.3,
+  "per_sign": {
+   "A": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "B": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "C": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "D": {
+    "n": 20,
+    "exactly_once": 95,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {}
+   },
+   "E": {
+    "n": 20,
+    "exactly_once": 95,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {}
+   },
+   "F": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "G": {
+    "n": 20,
+    "exactly_once": 95,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {}
+   },
+   "H": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "I": {
+    "n": 20,
+    "exactly_once": 95,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {}
+   },
+   "K": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "L": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "M": {
+    "n": 20,
+    "exactly_once": 65,
+    "extra": 0,
+    "missed": 4,
+    "wrong": {
+     "N": 3
+    }
+   },
+   "N": {
+    "n": 20,
+    "exactly_once": 75,
+    "extra": 0,
+    "missed": 4,
+    "wrong": {
+     "M": 1
+    }
+   },
+   "O": {
+    "n": 20,
+    "exactly_once": 90,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {
+     "F": 1
+    }
+   },
+   "P": {
+    "n": 20,
+    "exactly_once": 95,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {}
+   },
+   "Q": {
+    "n": 20,
+    "exactly_once": 95,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {}
+   },
+   "R": {
+    "n": 20,
+    "exactly_once": 90,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {
+     "U": 1
+    }
+   },
+   "S": {
+    "n": 20,
+    "exactly_once": 95,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {}
+   },
+   "T": {
+    "n": 20,
+    "exactly_once": 80,
+    "extra": 0,
+    "missed": 3,
+    "wrong": {
+     "Y": 1
+    }
+   },
+   "U": {
+    "n": 20,
+    "exactly_once": 90,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {
+     "X": 1
+    }
+   },
+   "V": {
+    "n": 20,
+    "exactly_once": 85,
+    "extra": 0,
+    "missed": 3,
+    "wrong": {}
+   },
+   "W": {
+    "n": 20,
+    "exactly_once": 95,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {}
+   },
+   "X": {
+    "n": 20,
+    "exactly_once": 85,
+    "extra": 0,
+    "missed": 2,
+    "wrong": {
+     "M": 1
+    }
+   },
+   "Y": {
+    "n": 20,
+    "exactly_once": 95,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {}
+   }
+  }
+ },
+ "letters_auto_mode": {
+  "overall": 71,
+  "per_sign": {
+   "A": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "B": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "C": {
+    "n": 20,
+    "exactly_once": 95,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {}
+   },
+   "D": {
+    "n": 20,
+    "exactly_once": 55,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {
+     "YOU": 7,
+     "FINE": 1,
+     "MORE": 1
+    }
+   },
+   "E": {
+    "n": 20,
+    "exactly_once": 95,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {
+     "MORE": 1
+    }
+   },
+   "F": {
+    "n": 20,
+    "exactly_once": 10,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {
+     "FINE": 15,
+     "MORE": 2
+    }
+   },
+   "G": {
+    "n": 20,
+    "exactly_once": 70,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {
+     "YOU": 5
+    }
+   },
+   "H": {
+    "n": 20,
+    "exactly_once": 95,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {
+     "MORE": 1
+    }
+   },
+   "I": {
+    "n": 20,
+    "exactly_once": 80,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {
+     "NEED": 1,
+     "YOU": 2
+    }
+   },
+   "K": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "L": {
+    "n": 20,
+    "exactly_once": 100,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {}
+   },
+   "M": {
+    "n": 20,
+    "exactly_once": 50,
+    "extra": 0,
+    "missed": 3,
+    "wrong": {
+     "ME": 1,
+     "N": 2,
+     "MORE": 2,
+     "FINE": 1,
+     "WATER": 1
+    }
+   },
+   "N": {
+    "n": 20,
+    "exactly_once": 60,
+    "extra": 0,
+    "missed": 4,
+    "wrong": {
+     "WATER": 2,
+     "M": 1,
+     "FINE": 1
+    }
+   },
+   "O": {
+    "n": 20,
+    "exactly_once": 0,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {
+     "FINE": 1,
+     "MORE": 17,
+     "F": 1
+    }
+   },
+   "P": {
+    "n": 20,
+    "exactly_once": 90,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {
+     "MORE": 1
+    }
+   },
+   "Q": {
+    "n": 20,
+    "exactly_once": 75,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {
+     "ME": 3,
+     "LOVE": 1
+    }
+   },
+   "R": {
+    "n": 20,
+    "exactly_once": 75,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {
+     "YOU": 3,
+     "U": 1
+    }
+   },
+   "S": {
+    "n": 20,
+    "exactly_once": 85,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {
+     "MORE": 1,
+     "NEED": 1
+    }
+   },
+   "T": {
+    "n": 20,
+    "exactly_once": 80,
+    "extra": 0,
+    "missed": 3,
+    "wrong": {
+     "Y": 1
+    }
+   },
+   "U": {
+    "n": 20,
+    "exactly_once": 90,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {
+     "YOU": 1
+    }
+   },
+   "V": {
+    "n": 20,
+    "exactly_once": 85,
+    "extra": 0,
+    "missed": 3,
+    "wrong": {}
+   },
+   "W": {
+    "n": 20,
+    "exactly_once": 15,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {
+     "WATER": 16
+    }
+   },
+   "X": {
+    "n": 20,
+    "exactly_once": 10,
+    "extra": 0,
+    "missed": 1,
+    "wrong": {
+     "NEED": 14,
+     "YOU": 2,
+     "M": 1
+    }
+   },
+   "Y": {
+    "n": 20,
+    "exactly_once": 90,
+    "extra": 0,
+    "missed": 0,
+    "wrong": {
+     "MORE": 1,
+     "YOU": 1
+    }
+   }
+  },
+  "note": "In Auto, W, O, F and X read as the words WATER, MORE, FINE and NEED because they are the same handshape. Use Letters mode to spell with them."
+ },
+ "rule_confusion": {
+  "labels": [
+   "HELLO",
+   "YES",
+   "NO",
+   "THANKS",
+   "PLEASE",
+   "SORRY",
+   "ME",
+   "YOU",
+   "WE",
+   "LOVE",
+   "STOP",
+   "WATER",
+   "MORE",
+   "DRINK",
+   "EAT",
+   "GO",
+   "COME",
+   "GOOD",
+   "BAD",
+   "LIKE",
+   "WANT",
+   "NEED",
+   "WHERE",
+   "WHAT",
+   "NAME",
+   "FINE",
+   "HOME"
+  ],
+  "matrix": {
+   "HELLO": {
+    "HELLO": 20
+   },
+   "YES": {
+    "YES": 20
+   },
+   "NO": {
+    "NO": 20
+   },
+   "THANKS": {
+    "THANKS": 20
+   },
+   "PLEASE": {
+    "PLEASE": 20
+   },
+   "SORRY": {
+    "SORRY": 20
+   },
+   "ME": {
+    "ME": 20
+   },
+   "YOU": {
+    "YOU": 20
+   },
+   "WE": {
+    "WE": 18,
+    "-": 2
+   },
+   "LOVE": {
+    "LOVE": 20
+   },
+   "STOP": {
+    "STOP": 20
+   },
+   "WATER": {
+    "WATER": 20
+   },
+   "MORE": {
+    "MORE": 17,
+    "-": 3
+   },
+   "DRINK": {
+    "DRINK": 14,
+    "-": 6
+   },
+   "EAT": {
+    "EAT": 16,
+    "-": 4
+   },
+   "GO": {
+    "GO": 20
+   },
+   "COME": {
+    "COME": 15,
+    "-": 5
+   },
+   "GOOD": {
+    "GOOD": 19,
+    "-": 1
+   },
+   "BAD": {
+    "BAD": 20
+   },
+   "LIKE": {
+    "LIKE": 13,
+    "-": 7
+   },
+   "WANT": {
+    "WANT": 19,
+    "-": 1
+   },
+   "NEED": {
+    "NEED": 16,
+    "-": 4
+   },
+   "WHERE": {
+    "WHERE": 20
+   },
+   "WHAT": {
+    "WHAT": 19,
+    "HELLO": 1
+   },
+   "NAME": {
+    "NAME": 20
+   },
+   "FINE": {
+    "FINE": 20
+   },
+   "HOME": {
+    "HOME": 15,
+    "-": 5
+   }
+  }
+ }
+}

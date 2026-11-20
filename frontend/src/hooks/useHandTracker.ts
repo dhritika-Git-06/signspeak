@@ -1,7 +1,7 @@
 import { FilesetResolver, HandLandmarker, type HandLandmarkerResult } from "@mediapipe/tasks-vision"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { asset } from "@/lib/asset"
-import { drawLandmarks, type Point } from "@/lib/hands"
+import { drawLandmarks, squareFrame, type Point } from "@/lib/hands"
 
 export interface HandFrame {
   landmarks: Point[] | null
@@ -110,7 +110,11 @@ export function useHandTracker() {
         }
         const result = marker.detectForVideo(videoRef.current, now)
         paint(result, null)
-        const landmarks = result.landmarks?.[0]?.map((p) => [p.x, p.y, p.z ?? 0] as Point) ?? null
+        const raw = result.landmarks?.[0]?.map((p) => [p.x, p.y, p.z ?? 0] as Point) ?? null
+        // Recognition works in square units so a 16:9 webcam sees the same hand shape as the training photos.
+        const video = videoRef.current
+        const aspect = video.videoWidth && video.videoHeight ? video.videoWidth / video.videoHeight : 4 / 3
+        const landmarks = raw ? squareFrame(raw, aspect) : null
         const handedness = result.handedness?.[0]?.[0]?.categoryName ?? null
         onFrame.current({ landmarks, handedness })
       }

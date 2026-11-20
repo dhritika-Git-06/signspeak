@@ -20,7 +20,7 @@ import { asset } from "@/lib/asset"
 import { SentenceSession } from "@/lib/sentenceEngine"
 import { speak } from "@/lib/speech"
 import { Recognizer } from "@/lib/recognizer"
-import { PRESENTATION_SCRIPT, WORD_SIGNS, demoSequence, recognizeWord } from "@/lib/words"
+import { PRESENTATION_SCRIPT, WORD_SIGNS, demoSequence, demoSquare, recognizeWord } from "@/lib/words"
 import { useModels } from "@/models-context"
 
 interface Live {
@@ -31,6 +31,12 @@ interface Live {
 }
 
 const LETTERS = "ABCDEFGHIKLMNOPQRSTUVWXY".split("")
+
+const MODE_NOTES: Record<string, string> = {
+  auto: "Words and letters. W, O, F and X look the same as WATER, MORE, FINE and NEED, so Auto reads them as words. Use Letters to spell with them.",
+  letters: "All 24 still letters (plus J and Z by motion). Word signs are ignored.",
+  words: "Word signs only. Letters are ignored.",
+}
 
 export function RecognizePage() {
   const models = useModels()
@@ -197,7 +203,7 @@ export function RecognizePage() {
         setLive({ label: id, confidence: 0.95, top: [{ label: id, confidence: 0.95 }], kind: "word" })
         await new Promise((resolve) => window.setTimeout(resolve, 45))
       }
-      const hit = recognizeWord(frames)
+      const hit = recognizeWord(demoSquare(id))
       session.current.confirmWord(hit?.id ?? id)
       bump()
     }
@@ -315,6 +321,7 @@ export function RecognizePage() {
               </button>
             ))}
           </div>
+          <p className="text-xs text-[var(--muted)]" data-testid="mode-note">{MODE_NOTES[mode]}</p>
           <SliderControl id="confidence" label="Confidence to commit" min={0.4} max={0.95} step={0.01} value={threshold} onChange={setThreshold} />
           <div className="flex flex-wrap items-center justify-between gap-3">
             <SwitchControl id="autospeak" label="Auto-speak" checked={autoSpeak} onCheckedChange={setAutoSpeak} />
@@ -411,7 +418,7 @@ export function RecognizePage() {
       <section id="signs" aria-label="Supported signs">
         <h2 className="serif text-3xl">Signs you can show</h2>
         <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">
-          The 24 still letters are the trained model. The words below are handshape rules, so a viva answer should call them rules, not a second accuracy score. HELP and SCHOOL need two hands and are listed only so you can say they are out of scope.
+          The 24 still letters are the trained model. The words below are handshape rules; their measured scores are on the Evaluation page, labelled real data or synthetic test.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {WORD_SIGNS.map((sign) => (
