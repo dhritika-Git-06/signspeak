@@ -46,7 +46,7 @@ export function RecognizePage() {
   const [voice, setVoice] = useState<"browser" | "gtts" | "silent" | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [showingSample, setShowingSample] = useState(false)
-  const stabilizer = useRef(new Stabilizer({ window: 8, majority: 0.7, minConfidence: 0.62, releaseFrames: 8 }))
+  const stabilizer = useRef(new Stabilizer({ window: 14, majority: 0.8, minConfidence: 0.62, releaseFrames: 6, cooldownFrames: 30 }))
   const buffer = useRef<Point[][]>([])
   const wordVotes = useRef(0)
   const replayTimer = useRef(0)
@@ -176,7 +176,7 @@ export function RecognizePage() {
       const pts: Point[] = []
       for (let i = 0; i < 21; i++) pts.push([flat[i * 2], flat[i * 2 + 1], 0])
       tracker.showSample(pts, "image")
-      for (let i = 0; i < 12; i++) classify(pts, "Right", "letter")
+      for (let i = 0; i < 20; i++) classify(pts, "Right", "letter")
       return
     }
     const data = await fetch(asset("samples/dynamic_samples.json")).then((res) => res.json())
@@ -187,7 +187,7 @@ export function RecognizePage() {
     const { dynamic, dynamicEmbed, meta, apiBase } = runtime.current.models
     if (!dynamic || !dynamicEmbed || !meta) return
     const flat = flattenSequence(seq)
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 20; i++) {
       const base = predictDynamic(dynamic, flat, meta.dynamic_labels)
       const prediction = {
         ...overrideCustom("dynamic", embedDynamic(dynamicEmbed, flat), base, runtime.current.models),

@@ -27,3 +27,20 @@ describe("Stabilizer", () => {
     expect(stabilizer.push("A", 0.5)).toBeNull()
   })
 })
+describe("Stabilizer cooldown", () => {
+  it("adds only one word while a sign is held and flickers", () => {
+    const s = new Stabilizer({ window: 3, majority: 0.67, minConfidence: 0.6, releaseFrames: 2, cooldownFrames: 5 })
+    const out: string[] = []
+    const seq = ["W", "W", "W", "WATER", "W", "MORE", "MORE", "MORE", "W", "W", "W"]
+    for (const l of seq) { const r = s.push(l, 0.9); if (r) out.push(r) }
+    expect(out).toEqual(["W"])
+  })
+  it("a hand drop clears the cooldown", () => {
+    const s = new Stabilizer({ window: 2, majority: 1, minConfidence: 0.6, releaseFrames: 2, cooldownFrames: 50 })
+    expect(s.push("ME", 0.9)).toBeNull()
+    expect(s.push("ME", 0.9)).toBe("ME")
+    s.push(null, 0); s.push(null, 0)
+    expect(s.push("WANT", 0.9)).toBeNull()
+    expect(s.push("WANT", 0.9)).toBe("WANT")
+  })
+})

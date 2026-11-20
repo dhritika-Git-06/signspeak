@@ -3,6 +3,8 @@ export interface StabilizerOptions {
   majority?: number
   minConfidence?: number
   releaseFrames?: number
+  /** Frames to ignore after a commit unless the hand is released first. */
+  cooldownFrames?: number
 }
 
 export class Stabilizer {
@@ -13,18 +15,22 @@ export class Stabilizer {
   private readonly majority: number
   private minConfidence: number
   private readonly releaseFrames: number
+  private readonly cooldownFrames: number
+  private cooldown = 0
 
   constructor(opts: StabilizerOptions = {}) {
     this.window = opts.window ?? 10
     this.majority = opts.majority ?? 0.7
     this.minConfidence = opts.minConfidence ?? 0.65
     this.releaseFrames = opts.releaseFrames ?? 8
+    this.cooldownFrames = opts.cooldownFrames ?? 0
   }
 
   reset() {
     this.buf = []
     this.held = null
     this.gap = 0
+    this.cooldown = 0
   }
 
   setMinConfidence(value: number) {
@@ -35,10 +41,18 @@ export class Stabilizer {
     if (!label || confidence < this.minConfidence) {
       this.gap += 1
       this.buf = []
-      if (this.gap >= this.releaseFrames) this.held = null
+      if (this.gap >= this.releaseFrames) {
+        this.held = null
+        this.cooldown = 0
+      }
       return null
     }
     this.gap = 0
+    if (this.cooldown > 0) {
+      this.cooldown -= 1
+      this.buf = []
+      return null
+    }
     this.buf.push({ label, confidence })
     if (this.buf.length > this.window) this.buf.shift()
     if (this.buf.length < this.window) return null
@@ -62,6 +76,8 @@ export class Stabilizer {
     if (bestN / this.buf.length < this.majority || bestConf < this.minConfidence) return null
     if (best === this.held) return null
     this.held = best
+    this.buf = []
+    this.cooldown = this.cooldownFrames
     return best
   }
 }
