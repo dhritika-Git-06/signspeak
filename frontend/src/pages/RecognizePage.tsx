@@ -361,13 +361,13 @@ export function RecognizePage() {
             </Button>
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2" aria-label="Confirmed signs">
+        <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Confirmed signs">
           {chips.length === 0 && <span className="text-sm text-[var(--muted)]">No signs confirmed yet.</span>}
           {chips.map((chip, index) => (
             <span key={`${chip}-${index}`} className="rounded-full bg-[var(--bg)] px-3 py-1 text-sm">{chip}</span>
           ))}
         </div>
-        <div className="mt-3 flex flex-wrap gap-2" aria-label="Suggestions">
+        <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Suggestions">
           {session.current.suggestions().map((item) => (
             <button key={item} className="rounded-full border border-[var(--line)] px-3 py-1 text-xs" onClick={() => { session.current.confirmWord(item); bump() }}>
               {item}

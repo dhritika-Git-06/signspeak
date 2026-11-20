@@ -65,11 +65,11 @@ export function EvalPage() {
         <Score title="Retired kinematic test, not used live" accuracy={metrics.dynamic.accuracy} f1={metrics.dynamic.macro_f1} detail="Synthetic motions on real handshapes. The live demo uses handshape rules instead, so do not quote this number as webcam accuracy." />
       </div>
       <section className="panel grid gap-4 p-5 md:grid-cols-2">
-        <figure>
+        <figure className="min-w-0">
           <img src={asset("evaluation/static_confusion.png")} alt="Confusion matrix for the 24 static ASL letters" className="w-full rounded-xl" />
           <figcaption className="mt-2 text-xs text-[var(--muted)]">Static test set. The bright diagonal is correct letters. M and N are the usual mix-up.</figcaption>
         </figure>
-        <figure>
+        <figure className="min-w-0">
           <img src={asset("evaluation/dynamic_confusion.png")} alt="Confusion matrix for the retired kinematic word test" className="w-full rounded-xl" />
           <figcaption className="mt-2 text-xs text-[var(--muted)]">Dynamic held-out synthetic test. High accuracy is expected: the motions were generated, not filmed.</figcaption>
         </figure>
@@ -82,8 +82,8 @@ export function EvalPage() {
         <h2 className="serif text-2xl text-[var(--ink)]">Datasets</h2>
         <p>
           <strong className="text-[var(--ink)]">{metrics.datasets.static.name}.</strong> {metrics.datasets.static.notes} Images: {metrics.datasets.static.images} ({metrics.datasets.static.images_license}).{" "}
-          <a className="underline" href={metrics.datasets.static.images_url}>Kaggle record</a>. Landmark file:{" "}
-          <a className="underline" href={metrics.datasets.static.landmarks_url}>hand_dataset_1000_24.csv</a>.
+          <a className="underline" target="_blank" rel="noreferrer" href={metrics.datasets.static.images_url}>Kaggle record</a>. Landmark file:{" "}
+          <a className="underline" target="_blank" rel="noreferrer" href={metrics.datasets.static.landmarks_url}>hand_dataset_1000_24.csv</a>.
         </p>
         <p>
           <strong className="text-[var(--ink)]">{metrics.datasets.dynamic.name}.</strong> {metrics.datasets.dynamic.notes} Classes: {metrics.datasets.dynamic.classes.join(", ")}.
@@ -100,7 +100,7 @@ export function EvalPage() {
 
 function Score({ title, accuracy, f1, detail }: { title: string; accuracy: number; f1: number; detail: string }) {
   return (
-    <section className="panel p-5">
+    <section className="panel min-w-0 p-5">
       <h2 className="text-sm text-[var(--muted)]">{title}</h2>
       <p className="serif text-5xl">{(accuracy * 100).toFixed(2)}%</p>
       <p className="text-sm">Macro F1 {(f1 * 100).toFixed(2)}%</p>
@@ -119,7 +119,7 @@ function Report({
   confusions: Array<{ actual: string; predicted: string; count: number }>
 }) {
   return (
-    <section className="panel p-5">
+    <section className="panel min-w-0 p-5">
       <h2 className="serif text-2xl">{title}</h2>
       {confusions.length > 0 && (
         <ul className="mt-2 text-sm text-[var(--muted)]">

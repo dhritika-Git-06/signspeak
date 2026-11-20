@@ -157,15 +157,22 @@ export function TrainPage() {
     const link = document.createElement("a")
     link.href = url
     link.download = "signspeak-signs.json"
+    document.body.appendChild(link)
     link.click()
-    URL.revokeObjectURL(url)
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    setStatus(`Exported ${bundle.signs.length} sign(s) to signspeak-signs.json.`)
   }
 
   async function onImport(file: File) {
-    const payload = JSON.parse(await file.text())
-    await importBundle(payload)
-    await models.refresh()
-    setStatus("Imported signs into this browser.")
+    try {
+      const payload = JSON.parse(await file.text())
+      await importBundle(payload)
+      await models.refresh()
+      setStatus(`Imported ${Array.isArray(payload.signs) ? payload.signs.length : 0} sign(s) into this browser.`)
+    } catch (err) {
+      setStatus(err instanceof SyntaxError ? "That file is not valid JSON. Pick a file made with Export." : err instanceof Error ? err.message : "Import failed")
+    }
   }
 
   return (
@@ -201,6 +208,7 @@ export function TrainPage() {
           {(["static", "dynamic"] as const).map((item) => (
             <button
               key={item}
+              aria-pressed={kind === item}
               className={`flex-1 rounded-full px-3 py-1.5 text-sm capitalize ${kind === item ? "bg-[var(--ink)] text-[var(--bg)]" : ""}`}
               onClick={() => {
                 setKind(item)
@@ -235,6 +243,8 @@ export function TrainPage() {
               onChange={(event) => {
                 const file = event.target.files?.[0]
                 if (file) void onImport(file)
+                // Let the same file be chosen again later.
+                event.target.value = ""
               }}
             />
           </label>
