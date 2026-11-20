@@ -7,12 +7,12 @@ export interface Framing {
 
 /**
  * Live framing advice from the raw hand landmarks (fractions of the image) and the mean image
- * brightness (0..255). Returns null when there is nothing useful to say.
+ * brightness (0..255), plus how long (ms) no hand has been seen. Returns null when there is nothing useful to say.
  */
-export function framingHint(raw: Point[] | null, brightness: number | null, missingFrames: number): Framing | null {
+export function framingHint(raw: Point[] | null, brightness: number | null, missingMs: number): Framing | null {
   if (brightness != null && brightness < 55) return { tone: "warn", text: "Too dark. Face a window or turn on a light." }
   if (!raw) {
-    return missingFrames > 60 ? { tone: "warn", text: "No hand found. Show one hand, palm toward the camera." } : null
+    return missingMs > 2000 ? { tone: "warn", text: "No hand found. Show one hand, palm toward the camera." } : null
   }
   const xs = raw.map((p) => p[0])
   const ys = raw.map((p) => p[1])

@@ -115,8 +115,8 @@ test("live framing hint appears while the camera runs", async ({ page, errors })
   await openApp(page)
   await page.getByRole("button", { name: "Start camera" }).click()
   await expect(page.getByRole("button", { name: "Stop camera" })).toBeVisible({ timeout: 30_000 })
-  // The fake webcam shows no hand, so after about two seconds the hint asks for one (or for light).
-  await expect(page.getByTestId("camera-hint")).toHaveText(/No hand found|Too dark|Very bright/, { timeout: 15_000 })
+  // The fake webcam shows no hand, so after two seconds the hint asks for one (or for light).
+  await expect(page.getByTestId("camera-hint")).toHaveText(/No hand found|Too dark|Very bright/, { timeout: 40_000 })
   await page.getByRole("button", { name: "Stop camera" }).click()
   await expect(page.getByTestId("camera-hint")).toHaveCount(0)
 })

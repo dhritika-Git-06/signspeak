@@ -62,7 +62,7 @@ export function RecognizePage() {
   const [transcript, setTranscript] = useState<Array<{ at: Date; english: string; hindi: string }>>([])
   const segment = useRef(new SegmentReader())
   const aslFrames = useRef<Point[][]>([])
-  const missingFrames = useRef(0)
+  const handSeenAt = useRef(0)
   const [mirror, setMirror] = useState<"auto" | "on" | "off">("auto")
   const [threshold, setThreshold] = useState(0.62)
   const [autoSpeak, setAutoSpeak] = useState(false)
@@ -181,8 +181,11 @@ export function RecognizePage() {
   useEffect(() => {
     classifyRef.current = classify
     tracker.setHandler((frame) => {
-      missingFrames.current = frame.landmarks ? 0 : missingFrames.current + 1
-      const next = frame.raw === undefined ? null : framingHint(frame.raw ?? null, frame.brightness ?? null, missingFrames.current)
+      const now = performance.now()
+      // Time based, so slow machines (a few frames a second) still get the "no hand" advice after two seconds.
+      if (frame.raw === undefined) handSeenAt.current = 0
+      else if (frame.landmarks || handSeenAt.current === 0) handSeenAt.current = now
+      const next = frame.raw === undefined ? null : framingHint(frame.raw ?? null, frame.brightness ?? null, now - handSeenAt.current)
       setFraming((prev) => (prev?.text === next?.text ? prev : next))
       classifyRef.current(frame.landmarks, frame.handedness, undefined, frame.second)
     })
