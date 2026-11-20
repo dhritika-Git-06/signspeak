@@ -246,7 +246,7 @@ export function RecognizePage() {
           <p className="mt-3 max-w-xl text-[var(--muted)]">
             Letters come from a model trained on public ASL hand landmarks. Common words use documented handshape rules, then a small offline grammar turns the glosses into English.
           </p>
-          <p className="mt-3 text-sm font-medium">Built by Dhritika Sahu · Final-year B.Tech CSE, Medi-Caps University, Indore</p>
+          <p className="mt-3 text-sm font-medium">Built by Dhritika Sahu</p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button onClick={() => document.getElementById("demo")?.scrollIntoView({ behavior: "smooth" })}>Open the demo</Button>
             <Button variant="quiet" onClick={() => void runPresentation()}>Play presentation demo</Button>
@@ -468,7 +468,7 @@ export function RecognizePage() {
 
       <section id="about" className="panel p-5">
         <h2 className="serif text-3xl">About</h2>
-        <p className="mt-2">Built by Dhritika Sahu · Final-year B.Tech CSE, Medi-Caps University, Indore.</p>
+        <p className="mt-2">Built by Dhritika Sahu.</p>
         <p className="mt-2 text-sm text-[var(--muted)]">
           Letter landmarks: ASL Alphabet photographs by Akash Nagaraj, GPL-2.0, converted to MediaPipe Hands points in the MinorvaFalk/KNN_Alphabet CSV. Held-out letter accuracy is 94.19% (macro F1 94.23%). Word signs on this page are geometric rules, not that test set. MediaPipe runs in the browser under its own licence.
         </p>

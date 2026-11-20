@@ -1,7 +1,6 @@
 # SignSpeak AI
 
 **Built by Dhritika Sahu**
-Final-year B.Tech CSE, Medi-Caps University, Indore
 
 ## Abstract
 
@@ -44,4 +43,4 @@ The system is one hand, isolated signs, and a small grammar. It does not transla
 - Akash Nagaraj, ASL Alphabet, Kaggle, GPL-2.0.
 - MinorvaFalk/KNN_Alphabet, MediaPipe landmark conversion of that set.
 - Google MediaPipe Hand Landmarker.
-- Dhritika Sahu, Medi-Caps University, Indore.
+- Dhritika Sahu.

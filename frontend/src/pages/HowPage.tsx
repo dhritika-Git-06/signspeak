@@ -28,7 +28,7 @@ export function HowPage() {
         <p className="text-xs uppercase tracking-[0.16em] text-[var(--muted)]">How it works</p>
         <h1 className="serif text-4xl">From a hand shape to a spoken sentence</h1>
         <p className="mt-3 text-[var(--muted)]">
-          Built by Dhritika Sahu · Final-year B.Tech CSE, Medi-Caps University, Indore. It is a fingerspelling and
+          Built by Dhritika Sahu. It is a fingerspelling and
           isolated-gesture tool: it does not translate full American Sign Language grammar, facial expression, or two-handed conversation.
         </p>
       </header>

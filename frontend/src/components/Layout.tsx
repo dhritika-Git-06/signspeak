@@ -25,7 +25,7 @@ export function Layout() {
             <span className="grid h-10 w-10 place-items-center rounded-2xl bg-[var(--ink)] text-[var(--bg)] serif text-xl">S</span>
             <span>
               <span className="block text-sm font-semibold tracking-tight">SignSpeak AI</span>
-              <span className="block text-xs text-[var(--muted)]">Dhritika Sahu · Medi-Caps University</span>
+              <span className="block text-xs text-[var(--muted)]">Dhritika Sahu</span>
             </span>
           </NavLink>
           <nav className="flex flex-1 flex-wrap gap-1" aria-label="Primary">
@@ -56,7 +56,7 @@ export function Layout() {
         <Outlet />
       </main>
       <footer className="mx-auto max-w-6xl px-4 pb-10 text-xs text-[var(--muted)]">
-        Built by Dhritika Sahu · Final-year B.Tech CSE, Medi-Caps University, Indore.
+        Built by Dhritika Sahu.
         Letter landmarks from the ASL Alphabet set (Akash Nagaraj, GPL-2.0) via MediaPipe Hands.
         Live words are geometric rules, not a second trained accuracy.
       </footer>

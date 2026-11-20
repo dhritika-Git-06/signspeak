@@ -1,6 +1,6 @@
 # SignSpeak AI — objective map
 
-Project: **SignSpeak AI – Sign Language to Speech Converter**, final-year B.Tech CSE, Medi-Caps University.
+Project: **SignSpeak AI – Sign Language to Speech Converter**, by Dhritika Sahu.
 
 The synopsis file supplied with the brief lists these objectives. Each one below is implemented and can be exercised without a GPU server. Where a behaviour depends on a webcam, the same code path accepts recorded landmarks (`Play sample` on Recognize, `python demo_webcam.py --samples`, and the API tests).
 

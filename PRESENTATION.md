@@ -1,6 +1,6 @@
 # Presentation notes
 
-**Dhritika Sahu · Final-year B.Tech CSE, Medi-Caps University, Indore**
+**Dhritika Sahu**
 **SignSpeak AI · about 5 minutes**
 
 Say only what the page actually does. The letter model has a measured accuracy. The words in the demo are rules.

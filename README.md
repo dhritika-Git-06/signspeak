@@ -1,6 +1,6 @@
 # SignSpeak AI
 
-Built by Dhritika Sahu · Final-year B.Tech CSE, Medi-Caps University, Indore.
+Built by Dhritika Sahu.
 
 SignSpeak AI turns a hand in a webcam into letters, a short English sentence, and speech. The page runs in the browser: MediaPipe finds the hand, a TensorFlow.js CNN reads still ASL letters, geometric rules read a set of common words, and `speechSynthesis` speaks the sentence. A small Python API is optional. If it is down, the page still recognizes signs and still speaks.
 
